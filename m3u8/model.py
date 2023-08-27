@@ -976,6 +976,7 @@ class Playlist(BasePathMixin):
             video_range=stream_info.get("video_range"),
             hdcp_level=stream_info.get("hdcp_level"),
             pathway_id=stream_info.get("pathway_id"),
+            characteristics=stream_info.get('characteristics'),
             stable_variant_id=stream_info.get("stable_variant_id"),
         )
         self.media = []
@@ -1041,6 +1042,7 @@ class IFramePlaylist(BasePathMixin):
             hdcp_level=iframe_stream_info.get("hdcp_level"),
             frame_rate=None,
             pathway_id=iframe_stream_info.get("pathway_id"),
+            characteristics=iframe_stream_info.get('characteristics'),
             stable_variant_id=iframe_stream_info.get("stable_variant_id"),
         )
 
@@ -1101,6 +1103,7 @@ class StreamInfo(object):
     video_range = None
     hdcp_level = None
     pathway_id = None
+    characteristics = None
     stable_variant_id = None
 
     def __init__(self, **kwargs):
@@ -1117,6 +1120,7 @@ class StreamInfo(object):
         self.video_range = kwargs.get("video_range")
         self.hdcp_level = kwargs.get("hdcp_level")
         self.pathway_id = kwargs.get("pathway_id")
+        self.characteristics = kwargs.get("characteristics")
         self.stable_variant_id = kwargs.get("stable_variant_id")
 
     def __str__(self):
@@ -1145,6 +1149,8 @@ class StreamInfo(object):
             stream_inf.append("HDCP-LEVEL=%s" % self.hdcp_level)
         if self.pathway_id is not None:
             stream_inf.append("PATHWAY-ID=" + quoted(self.pathway_id))
+        if self.characteristics is not None:
+            stream_inf.append('CHARACTERISTICS=' + quoted(self.characteristics))
         if self.stable_variant_id is not None:
             stream_inf.append("STABLE-VARIANT-ID=" + quoted(self.stable_variant_id))
         return ",".join(stream_inf)
