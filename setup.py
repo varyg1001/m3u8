@@ -14,7 +14,7 @@ install_reqs = [
 setup(
     name="m3u8",
     author="Globo.com",
-    version="3.5.0",
+    version="3.6.0",
     license="MIT",
     zip_safe=False,
     include_package_data=True,
@@ -23,5 +23,5 @@ setup(
     url="https://github.com/globocom/m3u8",
     description="Python m3u8 parser",
     long_description=long_description,
-    python_requires=">=3.6",
+    python_requires=">=3.7",
 )

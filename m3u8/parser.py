@@ -1,14 +1,18 @@
-# coding: utf-8
 # Copyright 2014 Globo.com Player authors. All rights reserved.
 # Use of this source code is governed by a MIT License
 # license that can be found in the LICENSE file.
 
-import datetime
 import itertools
 import re
-from urllib.parse import urljoin as _urljoin
+from datetime import datetime, timedelta
 
-import iso8601
+try:
+    from backports.datetime_fromisoformat import MonkeyPatch
+
+    MonkeyPatch.patch_fromisoformat()
+except ImportError:
+    pass
+
 
 from m3u8 import protocol
 
@@ -20,7 +24,7 @@ ATTRIBUTELISTPATTERN = re.compile(r"""((?:[^,"']|"[^"]*"|'[^']*')+)""")
 
 
 def cast_date_time(value):
-    return iso8601.parse_date(value)
+    return datetime.fromisoformat(value)
 
 
 def format_date_time(value, **kwargs):
@@ -223,7 +227,7 @@ def parse(content, strict=False, custom_tags_parser=None):
             _parse_image_stream_inf(line, data)
 
         elif line.startswith(protocol.ext_x_images_only):
-            data['is_images_only'] = True
+            data["is_images_only"] = True
 
         elif line.startswith(protocol.ext_x_tiles):
             _parse_tiles(line, data, state)
@@ -236,11 +240,11 @@ def parse(content, strict=False, custom_tags_parser=None):
             # blank lines are legal
             pass
 
-        elif state["expect_segment"]:
+        elif (not line.startswith("#")) and (state["expect_segment"]):
             _parse_ts_chunk(line, data, state)
             state["expect_segment"] = False
 
-        elif state["expect_playlist"]:
+        elif (not line.startswith("#")) and (state["expect_playlist"]):
             _parse_variant_playlist(line, data, state)
             state["expect_playlist"] = False
 
@@ -287,9 +291,7 @@ def _parse_ts_chunk(line, data, state):
         segment["program_date_time"] = state.pop("program_date_time")
     if state.get("current_program_date_time"):
         segment["current_program_date_time"] = state["current_program_date_time"]
-        state["current_program_date_time"] += datetime.timedelta(
-            seconds=segment["duration"]
-        )
+        state["current_program_date_time"] += timedelta(seconds=segment["duration"])
     segment["uri"] = line
     segment["cue_in"] = state.pop("cue_in", False)
     segment["cue_out"] = state.pop("cue_out", False)
@@ -388,11 +390,10 @@ def _parse_image_stream_inf(line, data):
     )
     image_playlist = {
         "uri": image_stream_info.pop("uri"),
-        "image_stream_info": image_stream_info
+        "image_stream_info": image_stream_info,
     }
 
     data["image_playlists"].append(image_playlist)
-
 
 
 def _parse_tiles(line, data, state):
@@ -400,9 +401,7 @@ def _parse_tiles(line, data, state):
     attribute_parser["resolution"] = str
     attribute_parser["layout"] = str
     attribute_parser["duration"] = float
-    tiles_info = _parse_attribute_list(
-        protocol.ext_x_tiles, line, attribute_parser
-    )
+    tiles_info = _parse_attribute_list(protocol.ext_x_tiles, line, attribute_parser)
     data["tiles"].append(tiles_info)
 
 
@@ -575,9 +574,7 @@ def _parse_part(line, data, state):
     # this should always be true according to spec
     if state.get("current_program_date_time"):
         part["program_date_time"] = state["current_program_date_time"]
-        state["current_program_date_time"] += datetime.timedelta(
-            seconds=part["duration"]
-        )
+        state["current_program_date_time"] += timedelta(seconds=part["duration"])
 
     part["dateranges"] = state.pop("dateranges", None)
     part["gap_tag"] = state.pop("gap", None)

@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright 2014 Globo.com Player authors. All rights reserved.
 # Use of this source code is governed by a MIT License
 # license that can be found in the LICENSE file.
@@ -899,6 +898,14 @@ IPTV_PLAYLIST_WITH_CUSTOM_TAGS = """#EXTM3U
 http://str00.iptv.domain/7331/mpegts?token=longtokenhere
 """
 
+IPTV_PLAYLIST_WITH_EARLY_EXTINF = """#EXTM3U
+#EXTVLCOPT:video-filter=invert
+#EXTGRP:ExtGroup1
+#EXTINF:0,Info
+#EXTVLCOPT:param2=value2
+http://str00.iptv.domain/7331/mpegts?token=longtokenhere
+"""
+
 LOW_LATENCY_DELTA_UPDATE_PLAYLIST = """#EXTM3U
 # Following the example above, this playlist is a response to: GET https://example.com/2M/waitForMSN.php?_HLS_msn=273&_HLS_part=3&_HLS_report=../1M/waitForMSN.php&_HLS_report=../4M/waitForMSN.php&_HLS_skip=YES
 #EXT-X-TARGETDURATION:4
@@ -1223,7 +1230,7 @@ VARIANT_PLAYLIST_WITH_STABLE_RENDITION_ID = """
 #EXT-X-MEDIA:TYPE=AUDIO,NAME="audio-aac-eng",STABLE-RENDITION-ID="a8213e27c12a158ea8660e0fe8bdcac6072ca26d984e7e8603652bc61fdceffa",URI="http://example.com/eng.m3u8"
 """
 
-VARIANT_PLAYLIST_WITH_IMAGE_PLAYLISTS = '''
+VARIANT_PLAYLIST_WITH_IMAGE_PLAYLISTS = """
 #EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-INDEPENDENT-SEGMENTS
@@ -1239,9 +1246,9 @@ index_3_av/new_index_3_av.m3u8
 index_0_a/new_index_0_a.m3u8S
 #EXT-X-IMAGE-STREAM-INF:BANDWIDTH=16460,RESOLUTION=320x180,CODECS="jpeg",URI="5x2_320x180/320x180-5x2.m3u8"
 #EXT-X-IMAGE-STREAM-INF:BANDWIDTH=32920,RESOLUTION=640x360,CODECS="jpeg",URI="5x2_640x360/640x360-5x2.m3u8"
-'''
+"""
 
-VOD_IMAGE_PLAYLIST = '''
+VOD_IMAGE_PLAYLIST = """
 #EXTM3U
 #EXT-X-VERSION:7
 #EXT-X-TARGETDURATION:6
@@ -1288,9 +1295,9 @@ content-6.jpg
 #EXT-X-TILES:RESOLUTION=640x360,LAYOUT=5x2,DURATION=6.006
 content-7.jpg
 #EXT-X-ENDLIST
-'''
+"""
 
-VOD_IMAGE_PLAYLIST2 = '''
+VOD_IMAGE_PLAYLIST2 = """
 #EXTM3U
 #EXT-X-TARGETDURATION:6
 #EXT-X-VERSION:7
@@ -1324,9 +1331,9 @@ credits_2_0.jpg
 #EXT-X-TILES:RESOLUTION=640x360,LAYOUT=4x3,DURATION=2.002
 credits_2_1.jpg
 #EXT-X-ENDLIST
-'''
+"""
 
-LIVE_IMAGE_PLAYLIST = '''
+LIVE_IMAGE_PLAYLIST = """
 #EXTM3U
 #EXT-X-TARGETDURATION:6
 #EXT-X-VERSION:7
@@ -1361,8 +1368,7 @@ content-129.jpg
 content-130.jpg
 #EXTINF:6.006,
 content-131.jpg
-'''
-
+"""
 
 
 del abspath, dirname, join

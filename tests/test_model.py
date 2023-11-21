@@ -1,4 +1,3 @@
-# coding: utf-8
 # Copyright 2014 Globo.com Player authors. All rights reserved.
 # Use of this source code is governed by a MIT License
 # license that can be found in the LICENSE file.
@@ -8,7 +7,6 @@
 
 import datetime
 import os
-import sys
 
 import playlists
 import pytest
@@ -30,23 +28,7 @@ from m3u8.model import (
 from m3u8.protocol import ext_x_part, ext_x_preload_hint, ext_x_start
 
 
-class UTC(datetime.tzinfo):
-    """tzinfo class used for backwards compatibility reasons.
-    Extracted from the official documentation.
-    Ref: https://docs.python.org/2/library/datetime.html#datetime.tzinfo.fromutc
-    """
-
-    def utcoffset(self, dt):
-        return datetime.timedelta(0)
-
-    def tzname(self, dt):
-        return "UTC"
-
-    def dst(self, dt):
-        return datetime.timedelta(0)
-
-
-utc = UTC()
+utc = datetime.timezone.utc
 
 
 def test_base_path_playlist_with_slash_in_query_string():
@@ -152,30 +134,30 @@ def test_segment_discontinuity_attribute():
     obj = m3u8.M3U8(playlists.DISCONTINUITY_PLAYLIST_WITH_PROGRAM_DATE_TIME)
     segments = obj.segments
 
-    assert segments[0].discontinuity == False
-    assert segments[5].discontinuity == True
-    assert segments[6].discontinuity == False
+    assert segments[0].discontinuity is False
+    assert segments[5].discontinuity is True
+    assert segments[6].discontinuity is False
 
 
 def test_segment_cue_out_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_PLAYLIST)
     segments = obj.segments
 
-    assert segments[1].cue_out == True
-    assert segments[2].cue_out == True
-    assert segments[3].cue_out == False
+    assert segments[1].cue_out is True
+    assert segments[2].cue_out is True
+    assert segments[3].cue_out is False
 
 
 def test_segment_cue_out_start_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_WITH_DURATION_PLAYLIST)
 
-    assert obj.segments[0].cue_out_start == True
+    assert obj.segments[0].cue_out_start is True
 
 
 def test_segment_cue_in_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_WITH_DURATION_PLAYLIST)
 
-    assert obj.segments[2].cue_in == True
+    assert obj.segments[2].cue_in is True
 
 
 def test_segment_cue_out_cont_dumps():
@@ -236,8 +218,8 @@ def test_segment_cue_out_in_dumps():
 def test_segment_elemental_scte35_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_ELEMENTAL_PLAYLIST)
     segments = obj.segments
-    assert segments[4].cue_out == True
-    assert segments[9].cue_out == False
+    assert segments[4].cue_out is True
+    assert segments[9].cue_out is False
     assert (
         segments[4].scte35 == "/DAlAAAAAAAAAP/wFAUAAAABf+//wpiQkv4ARKogAAEBAQAAQ6sodg=="
     )
@@ -246,14 +228,14 @@ def test_segment_elemental_scte35_attribute():
 def test_segment_envivio_scte35_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_ENVIVIO_PLAYLIST)
     segments = obj.segments
-    assert segments[3].cue_out == True
+    assert segments[3].cue_out is True
     assert (
         segments[4].scte35 == "/DAlAAAENOOQAP/wFAUBAABrf+//N25XDf4B9p/gAAEBAQAAxKni9A=="
     )
     assert (
         segments[5].scte35 == "/DAlAAAENOOQAP/wFAUBAABrf+//N25XDf4B9p/gAAEBAQAAxKni9A=="
     )
-    assert segments[7].cue_out == False
+    assert segments[7].cue_out is False
 
 
 def test_segment_unknown_scte35_attribute():
@@ -264,8 +246,8 @@ def test_segment_unknown_scte35_attribute():
 
 def test_segment_cue_out_no_duration():
     obj = m3u8.M3U8(playlists.CUE_OUT_NO_DURATION_PLAYLIST)
-    assert obj.segments[0].cue_out_start == True
-    assert obj.segments[2].cue_in == True
+    assert obj.segments[0].cue_out_start is True
+    assert obj.segments[2].cue_in is True
 
 
 def test_segment_asset_metadata_dumps():
@@ -318,7 +300,7 @@ def test_key_attribute_without_initialization_vector():
 
     assert "AES-128" == obj.keys[0].method
     assert "/key" == obj.keys[0].uri
-    assert None == obj.keys[0].iv
+    assert None is obj.keys[0].iv
 
 
 def test_session_keys_on_clear_playlist():
@@ -358,7 +340,7 @@ def test_session_key_attribute_without_initialization_vector():
 
     assert "AES-128" == obj.session_keys[0].method
     assert "/key" == obj.session_keys[0].uri
-    assert None == obj.session_keys[0].iv
+    assert None is obj.session_keys[0].iv
 
 
 def test_segments_attribute():
@@ -388,7 +370,7 @@ def test_segments_attribute_without_title():
 
     assert "/foo/bar-1.ts" == obj.segments[0].uri
     assert 1500 == obj.segments[0].duration
-    assert None == obj.segments[0].title
+    assert None is obj.segments[0].title
 
 
 def test_segments_attribute_without_duration():
@@ -401,7 +383,7 @@ def test_segments_attribute_without_duration():
 
     assert "/foo/bar-1.ts" == obj.segments[0].uri
     assert "Segment title" == obj.segments[0].title
-    assert None == obj.segments[0].duration
+    assert None is obj.segments[0].duration
 
 
 def test_segments_attribute_with_byterange():
@@ -519,34 +501,34 @@ def test_playlists_attribute():
     assert "/url/1.m3u8" == obj.playlists[0].uri
     assert 1 == obj.playlists[0].stream_info.program_id
     assert 320000 == obj.playlists[0].stream_info.bandwidth
-    assert None == obj.playlists[0].stream_info.closed_captions
-    assert None == obj.playlists[0].stream_info.codecs
+    assert None is obj.playlists[0].stream_info.closed_captions
+    assert None is obj.playlists[0].stream_info.codecs
 
-    assert None == obj.playlists[0].media[0].uri
+    assert None is obj.playlists[0].media[0].uri
     assert "high" == obj.playlists[0].media[0].group_id
     assert "VIDEO" == obj.playlists[0].media[0].type
-    assert None == obj.playlists[0].media[0].language
+    assert None is obj.playlists[0].media[0].language
     assert "High" == obj.playlists[0].media[0].name
-    assert None == obj.playlists[0].media[0].default
-    assert None == obj.playlists[0].media[0].autoselect
-    assert None == obj.playlists[0].media[0].forced
-    assert None == obj.playlists[0].media[0].characteristics
+    assert None is obj.playlists[0].media[0].default
+    assert None is obj.playlists[0].media[0].autoselect
+    assert None is obj.playlists[0].media[0].forced
+    assert None is obj.playlists[0].media[0].characteristics
 
     assert "/url/2.m3u8" == obj.playlists[1].uri
     assert 1 == obj.playlists[1].stream_info.program_id
     assert 120000 == obj.playlists[1].stream_info.bandwidth
-    assert None == obj.playlists[1].stream_info.closed_captions
+    assert None is obj.playlists[1].stream_info.closed_captions
     assert "mp4a.40.5" == obj.playlists[1].stream_info.codecs
 
-    assert None == obj.playlists[1].media[0].uri
+    assert None is obj.playlists[1].media[0].uri
     assert "low" == obj.playlists[1].media[0].group_id
     assert "VIDEO" == obj.playlists[1].media[0].type
-    assert None == obj.playlists[1].media[0].language
+    assert None is obj.playlists[1].media[0].language
     assert "Low" == obj.playlists[1].media[0].name
     assert "YES" == obj.playlists[1].media[0].default
     assert "YES" == obj.playlists[1].media[0].autoselect
-    assert None == obj.playlists[1].media[0].forced
-    assert None == obj.playlists[1].media[0].characteristics
+    assert None is obj.playlists[1].media[0].forced
+    assert None is obj.playlists[1].media[0].characteristics
 
     assert [] == obj.iframe_playlists
 
@@ -562,8 +544,8 @@ def test_playlists_attribute_without_program_id():
 
     assert "/url/1.m3u8" == obj.playlists[0].uri
     assert 320000 == obj.playlists[0].stream_info.bandwidth
-    assert None == obj.playlists[0].stream_info.codecs
-    assert None == obj.playlists[0].stream_info.program_id
+    assert None is obj.playlists[0].stream_info.codecs
+    assert None is obj.playlists[0].stream_info.program_id
 
 
 def test_playlists_attribute_with_resolution():
@@ -571,7 +553,7 @@ def test_playlists_attribute_with_resolution():
 
     assert 2 == len(obj.playlists)
     assert (512, 288) == obj.playlists[0].stream_info.resolution
-    assert None == obj.playlists[1].stream_info.resolution
+    assert None is obj.playlists[1].stream_info.resolution
 
 
 def test_iframe_playlists_attribute():
@@ -604,9 +586,9 @@ def test_iframe_playlists_attribute():
     assert "avc1.4d001f" == obj.iframe_playlists[0].iframe_stream_info.codecs
 
     assert "/url/2.m3u8" == obj.iframe_playlists[1].uri
-    assert None == obj.iframe_playlists[1].iframe_stream_info.program_id
+    assert None is obj.iframe_playlists[1].iframe_stream_info.program_id
     assert "120000" == obj.iframe_playlists[1].iframe_stream_info.bandwidth
-    assert None == obj.iframe_playlists[1].iframe_stream_info.resolution
+    assert None is obj.iframe_playlists[1].iframe_stream_info.resolution
     assert "avc1.4d400d" == obj.iframe_playlists[1].iframe_stream_info.codecs
 
 
@@ -616,7 +598,7 @@ def test_version_attribute():
     assert 2 == obj.version
 
     mock_parser_data(obj, {})
-    assert None == obj.version
+    assert None is obj.version
 
 
 def test_version_settable_as_int():
@@ -639,7 +621,7 @@ def test_allow_cache_attribute():
     assert "no" == obj.allow_cache
 
     mock_parser_data(obj, {})
-    assert None == obj.allow_cache
+    assert None is obj.allow_cache
 
 
 def test_files_attribute_should_list_all_files_including_segments_and_key():
@@ -781,6 +763,13 @@ def test_dump_segment_honors_timespec():
     assert "EXT-X-PROGRAM-DATE-TIME:2014-08-13T13:36:33.000000+00:00" in segment_text
 
 
+def test_dump_honors_timespec():
+    obj = m3u8.M3U8(playlists.SIMPLE_PLAYLIST_WITH_PROGRAM_DATE_TIME)
+    obj_text = obj.dumps(timespec="microseconds").strip()
+
+    assert "EXT-X-PROGRAM-DATE-TIME:2014-08-13T13:36:33.000000+00:00" in obj_text
+
+
 def test_dump_should_not_ignore_zero_duration():
     obj = m3u8.M3U8(playlists.SIMPLE_PLAYLIST_WITH_ZERO_DURATION)
 
@@ -865,9 +854,7 @@ def test_should_dump_multiple_keys():
     obj = m3u8.M3U8(
         playlists.PLAYLIST_WITH_ENCRYPTED_SEGMENTS_AND_IV_WITH_MULTIPLE_KEYS
     )
-    expected = (
-        playlists.PLAYLIST_WITH_ENCRYPTED_SEGMENTS_AND_IV_WITH_MULTIPLE_KEYS_SORTED.strip()
-    )
+    expected = playlists.PLAYLIST_WITH_ENCRYPTED_SEGMENTS_AND_IV_WITH_MULTIPLE_KEYS_SORTED.strip()
 
     assert expected == obj.dumps().strip()
 
@@ -896,9 +883,7 @@ def test_should_dump_complex_unencrypted_encrypted_keys_no_uri_attr():
     obj = m3u8.M3U8(
         playlists.PLAYLIST_WITH_MULTIPLE_KEYS_UNENCRYPTED_AND_ENCRYPTED_NONE_AND_NO_URI_ATTR
     )
-    expected = (
-        playlists.PLAYLIST_WITH_MULTIPLE_KEYS_UNENCRYPTED_AND_ENCRYPTED_NONE_AND_NO_URI_ATTR.strip()
-    )
+    expected = playlists.PLAYLIST_WITH_MULTIPLE_KEYS_UNENCRYPTED_AND_ENCRYPTED_NONE_AND_NO_URI_ATTR.strip()
 
     assert expected == obj.dumps().strip()
 
@@ -1024,22 +1009,6 @@ def test_should_normalize_variant_streams_urls_if_base_path_passed_to_constructo
     )
 
     assert obj.dumps().strip() == expected
-
-
-def test_should_normalize_segments_and_key_urls_if_base_path_attribute_updated():
-    base_path = "http://videoserver.com/hls/live"
-
-    obj = m3u8.M3U8(playlists.PLAYLIST_WITH_ENCRYPTED_SEGMENTS_AND_IV)
-    obj.base_path = base_path  # update later
-
-    expected = (
-        playlists.PLAYLIST_WITH_ENCRYPTED_SEGMENTS_AND_IV_SORTED.replace(", IV", ",IV")
-        .replace("../../../../hls", base_path)
-        .replace("/hls-key", base_path)
-        .strip()
-    )
-
-    assert obj.dumps() == expected
 
 
 def test_should_normalize_segments_and_key_urls_if_base_path_attribute_updated():
@@ -1247,15 +1216,6 @@ def test_should_round_frame_rate():
     assert expected == obj.dumps().strip()
 
 
-@pytest.mark.skipif(sys.version_info >= (3,), reason="unicode not available in v3")
-def test_m3u8_unicode_method():
-    obj = m3u8.M3U8(playlists.SIMPLE_PLAYLIST)
-
-    result = unicode(obj).strip()
-    expected = playlists.SIMPLE_PLAYLIST.strip()
-    assert result == expected
-
-
 def test_add_segment_to_playlist():
     obj = m3u8.M3U8()
 
@@ -1287,7 +1247,7 @@ def test_find_key_throws_when_no_match():
                 # deliberately empty
             ],
         )
-    except KeyError as e:
+    except KeyError:
         threw = True
     finally:
         assert threw
@@ -1596,12 +1556,6 @@ def test_dump_should_work_for_variant_playlists_with_image_playlists():
 
     assert expected == obj.dumps().strip()
 
-def test_dump_should_work_for_variant_playlists_with_image_playlists():
-    obj = m3u8.M3U8(playlists.VARIANT_PLAYLIST_WITH_IMAGE_PLAYLISTS)
-
-    expected = playlists.VARIANT_PLAYLIST_WITH_IMAGE_PLAYLISTS.strip()
-
-    assert expected == obj.dumps().strip()
 
 def test_segment_media_sequence():
     obj = m3u8.M3U8(playlists.SLIDING_WINDOW_PLAYLIST)
