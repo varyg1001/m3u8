@@ -28,7 +28,7 @@ def test_should_parse_simple_playlist_from_string():
 
 def test_should_parse_non_integer_duration_from_playlist_string():
     data = m3u8.parse(playlists.PLAYLIST_WITH_NON_INTEGER_DURATION)
-    assert 5220.5 == data["targetduration"]
+    assert 5221 == data["targetduration"]
     assert [5220.5] == [c["duration"] for c in data["segments"]]
 
 
@@ -390,13 +390,13 @@ def test_should_parse_scte35_from_playlist():
         False,
         False,
         False,
+        True,  # EXT-X-CUE-OUT
         True,
         True,
         True,
         True,
         True,
-        True,
-        False,
+        False,  # EXT-X-CUE-IN
         False,
     ]
     assert actual_cue_status == expected_cue_status
@@ -856,8 +856,8 @@ def test_delta_playlist_daterange_skipping():
 
 def test_bitrate():
     data = m3u8.parse(playlists.BITRATE_PLAYLIST)
-    assert data["segments"][0]["bitrate"] == "1674"
-    assert data["segments"][1]["bitrate"] == "1625"
+    assert data["segments"][0]["bitrate"] == 1674
+    assert data["segments"][1]["bitrate"] == 1625
 
 
 def test_content_steering():
@@ -905,3 +905,8 @@ def test_media_with_stable_rendition_id():
         data["media"][0]["stable_rendition_id"]
         == "a8213e27c12a158ea8660e0fe8bdcac6072ca26d984e7e8603652bc61fdceffa"
     )
+
+
+def test_req_video_layout():
+    data = m3u8.parse(playlists.VARIANT_PLAYLIST_WITH_REQ_VIDEO_LAYOUT)
+    assert data["playlists"][0]["stream_info"]["req_video_layout"] == '"CH-STEREO"'

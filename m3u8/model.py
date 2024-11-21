@@ -362,7 +362,7 @@ class M3U8:
     def add_rendition_report(self, report):
         self.rendition_reports.append(report)
 
-    def dumps(self, timespec="milliseconds"):
+    def dumps(self, timespec="milliseconds", infspec="auto"):
         """
         Returns the current m3u8 as a string.
         You could also use unicode(<this obj>) or str(<this obj>)
@@ -414,7 +414,7 @@ class M3U8:
         for key in self.session_keys:
             output.append(str(key))
 
-        output.append(self.segments.dumps(timespec))
+        output.append(self.segments.dumps(timespec, infspec))
 
         if self.preload_hint:
             output.append(str(self.preload_hint))
@@ -441,6 +441,9 @@ class M3U8:
             fileobj.write(self.dumps())
 
     def _create_sub_directories(self, filename):
+        if not os.path.isabs(filename):
+            filename = os.path.join(os.getcwd(), filename)
+
         basename = os.path.dirname(filename)
         if basename:
             os.makedirs(basename, exist_ok=True)
@@ -470,14 +473,17 @@ class Segment(BasePathMixin):
       Returns a boolean indicating if a EXT-X-DISCONTINUITY tag exists
       http://tools.ietf.org/html/draft-pantos-http-live-streaming-13#section-3.4.11
 
-    `cue_out_start`
-      Returns a boolean indicating if a EXT-X-CUE-OUT tag exists
-
     `cue_out`
       Returns a boolean indicating if a EXT-X-CUE-OUT-CONT tag exists
       Note: for backwards compatibility, this will be True when cue_out_start
             is True, even though this tag did not exist in the input, and
             EXT-X-CUE-OUT-CONT will not exist in the output
+
+    `cue_out_start`
+      Returns a boolean indicating if a EXT-X-CUE-OUT tag exists
+
+    `cue_out_explicitly_duration`
+      Returns a boolean indicating if a EXT-X-CUE-OUT have the DURATION parameter when parsing
 
     `cue_in`
       Returns a boolean indicating if a EXT-X-CUE-IN tag exists
@@ -528,6 +534,7 @@ class Segment(BasePathMixin):
         byterange=None,
         cue_out=False,
         cue_out_start=False,
+        cue_out_explicitly_duration=False,
         cue_in=False,
         discontinuity=False,
         key=None,
@@ -555,6 +562,7 @@ class Segment(BasePathMixin):
         self.current_program_date_time = current_program_date_time
         self.discontinuity = discontinuity
         self.cue_out_start = cue_out_start
+        self.cue_out_explicitly_duration = cue_out_explicitly_duration
         self.cue_out = cue_out
         self.cue_in = cue_in
         self.scte35 = scte35
@@ -581,7 +589,7 @@ class Segment(BasePathMixin):
     def add_part(self, part):
         self.parts.append(part)
 
-    def dumps(self, last_segment, timespec="milliseconds"):
+    def dumps(self, last_segment, timespec="milliseconds", infspec="auto"):
         output = []
 
         if last_segment and self.key != last_segment.key:
@@ -593,15 +601,8 @@ class Segment(BasePathMixin):
                 output.append(str(self.key))
                 output.append("\n")
 
-        if last_segment and self.init_section != last_segment.init_section:
-            if not self.init_section:
-                raise MalformedPlaylistError(
-                    "init section can't be None if previous is not None"
-                )
-            output.append(str(self.init_section))
-            output.append("\n")
-        else:
-            if self.init_section and last_segment is None:
+        if self.init_section:
+            if (not last_segment) or (self.init_section != last_segment.init_section):
                 output.append(str(self.init_section))
                 output.append("\n")
 
@@ -627,11 +628,9 @@ class Segment(BasePathMixin):
                     asset_suffix.append(f"{metadata_key.upper()}={metadata_value}")
                 output.append(f"{ext_x_asset}:{','.join(asset_suffix)}\n")
 
-            output.append(
-                "#EXT-X-CUE-OUT{}\n".format(
-                    (":" + self.scte35_duration) if self.scte35_duration else ""
-                )
-            )
+            prefix = ":DURATION=" if self.cue_out_explicitly_duration else ":"
+            cue_info = f"{prefix}{self.scte35_duration}" if self.scte35_duration else ""
+            output.append(f"#EXT-X-CUE-OUT{cue_info}\n")
         elif self.cue_out:
             cue_out_cont_suffix = []
             if self.scte35_elapsedtime:
@@ -646,8 +645,10 @@ class Segment(BasePathMixin):
             else:
                 cue_out_cont_suffix = ""
             output.append(f"#EXT-X-CUE-OUT-CONT{cue_out_cont_suffix}\n")
-        if self.cue_in:
+        elif self.cue_in:
             output.append("#EXT-X-CUE-IN\n")
+        elif self.oatcls_scte35:
+            output.append(f"{ext_oatcls_scte35}:{self.oatcls_scte35}\n")
 
         if self.parts:
             output.append(str(self.parts))
@@ -655,7 +656,13 @@ class Segment(BasePathMixin):
 
         if self.uri:
             if self.duration is not None:
-                output.append("#EXTINF:%s," % number_to_string(self.duration))
+                if infspec == "milliseconds":
+                    duration = f"{self.duration:.3f}"
+                elif infspec == "microseconds":
+                    duration = f"{self.duration:.6f}"
+                else:
+                    duration = number_to_string(self.duration)
+                output.append("#EXTINF:%s," % duration)
                 if self.title:
                     output.append(self.title)
                 output.append("\n")
@@ -664,7 +671,7 @@ class Segment(BasePathMixin):
                 output.append("#EXT-X-BYTERANGE:%s\n" % self.byterange)
 
             if self.bitrate:
-                output.append("#EXT-X-BITRATE:%s\n" % self.bitrate)
+                output.append("#EXT-X-BITRATE:%d\n" % self.bitrate)
 
             if self.gap_tag:
                 output.append("#EXT-X-GAP\n")
@@ -700,11 +707,11 @@ class Segment(BasePathMixin):
 
 
 class SegmentList(list, GroupedBasePathMixin):
-    def dumps(self, timespec="milliseconds"):
+    def dumps(self, timespec="milliseconds", infspec="auto"):
         output = []
         last_segment = None
         for segment in self:
-            output.append(segment.dumps(last_segment, timespec))
+            output.append(segment.dumps(last_segment, timespec, infspec))
             last_segment = segment
         return "\n".join(output)
 
@@ -979,6 +986,7 @@ class Playlist(BasePathMixin):
             pathway_id=stream_info.get("pathway_id"),
             characteristics=stream_info.get('characteristics'),
             stable_variant_id=stream_info.get("stable_variant_id"),
+            req_video_layout=stream_info.get("req_video_layout"),
         )
         self.media = []
         for media_type in ("audio", "video", "subtitles"):
@@ -1045,6 +1053,7 @@ class IFramePlaylist(BasePathMixin):
             pathway_id=iframe_stream_info.get("pathway_id"),
             characteristics=iframe_stream_info.get('characteristics'),
             stable_variant_id=iframe_stream_info.get("stable_variant_id"),
+            req_video_layout=None,
         )
 
     def __str__(self):
@@ -1106,6 +1115,7 @@ class StreamInfo:
     pathway_id = None
     characteristics = None
     stable_variant_id = None
+    req_video_layout = None
 
     def __init__(self, **kwargs):
         self.bandwidth = kwargs.get("bandwidth")
@@ -1123,6 +1133,7 @@ class StreamInfo:
         self.pathway_id = kwargs.get("pathway_id")
         self.characteristics = kwargs.get("characteristics")
         self.stable_variant_id = kwargs.get("stable_variant_id")
+        self.req_video_layout = kwargs.get("req_video_layout")
 
     def __str__(self):
         stream_inf = []
@@ -1154,6 +1165,8 @@ class StreamInfo:
             stream_inf.append('CHARACTERISTICS=' + quoted(self.characteristics))
         if self.stable_variant_id is not None:
             stream_inf.append("STABLE-VARIANT-ID=" + quoted(self.stable_variant_id))
+        if self.req_video_layout is not None:
+            stream_inf.append("REQ-VIDEO_LAYOUT=" + quoted(self.req_video_layout))
         return ",".join(stream_inf)
 
 
@@ -1287,7 +1300,7 @@ class Start:
 
 
 class RenditionReport(BasePathMixin):
-    def __init__(self, base_uri, uri, last_msn, last_part=None):
+    def __init__(self, base_uri, uri, last_msn=None, last_part=None):
         self.base_uri = base_uri
         self.uri = uri
         self.last_msn = last_msn
@@ -1296,7 +1309,8 @@ class RenditionReport(BasePathMixin):
     def dumps(self):
         report = []
         report.append("URI=" + quoted(self.uri))
-        report.append("LAST-MSN=" + str(self.last_msn))
+        if self.last_msn is not None:
+            report.append("LAST-MSN=" + str(self.last_msn))
         if self.last_part is not None:
             report.append("LAST-PART=" + str(self.last_part))
 

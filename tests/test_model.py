@@ -7,6 +7,7 @@
 
 import datetime
 import os
+import textwrap
 
 import playlists
 import pytest
@@ -26,7 +27,6 @@ from m3u8.model import (
     find_key,
 )
 from m3u8.protocol import ext_x_part, ext_x_preload_hint, ext_x_start
-
 
 utc = datetime.timezone.utc
 
@@ -180,14 +180,23 @@ def test_segment_cue_out_cont_attributes_dumps():
     assert expected in result
 
 
-def test_segment_oatcls_scte35_dumps():
+def test_segment_oatcls_scte35_cue_out_dumps():
     obj = m3u8.M3U8(playlists.CUE_OUT_ELEMENTAL_PLAYLIST)
     result = obj.dumps()
 
-    # Only insert OATCLS-SCTE35 at cue out
+    # Check OATCLS-SCTE35 for CUE-OUT lines
     cue_out_line = (
         "#EXT-OATCLS-SCTE35:/DAlAAAAAAAAAP/wFAUAAAABf+//wpiQkv4ARKogAAEBAQAAQ6sodg==\n"
     )
+    assert result.count(cue_out_line) == 1
+
+
+def test_segment_oatcls_scte35_non_cue_out_dumps():
+    obj = m3u8.M3U8(playlists.OATCLS_ELEMENTAL_PLAYLIST)
+    result = obj.dumps()
+
+    # Check OATCLS-SCTE35 for non-CUE-OUT lines
+    cue_out_line = "/DAqAAAAAyiYAP/wBQb/FuaKGAAUAhJDVUVJAAAFp3+/EQMCRgIMAQF7Ny4D\n"
     assert result.count(cue_out_line) == 1
 
 
@@ -196,6 +205,14 @@ def test_segment_cue_out_start_dumps():
 
     result = obj.dumps()
     expected = "#EXT-X-CUE-OUT:11.52\n"
+    assert expected in result
+
+
+def test_segment_cue_out_start_explicit_dumps():
+    obj = m3u8.M3U8(playlists.CUE_OUT_WITH_EXPLICIT_DURATION_PLAYLIST)
+
+    result = obj.dumps()
+    expected = "#EXT-X-CUE-OUT:DURATION=11.52\n"
     assert expected in result
 
 
@@ -225,6 +242,28 @@ def test_segment_elemental_scte35_attribute():
     )
 
 
+def test_segment_cue_out_cont_alt():
+    obj = m3u8.M3U8(playlists.CUE_OUT_CONT_ALT_PLAYLIST)
+    segments = obj.segments
+
+    assert segments[1].scte35_elapsedtime == "2"
+    assert segments[1].scte35_duration == "120"
+
+    assert segments[2].scte35_elapsedtime == "8"
+    assert segments[2].scte35_duration == "120.0"
+
+    assert segments[3].scte35_elapsedtime == "14.001"
+    assert segments[3].scte35_duration == "120.0"
+
+
+def test_segment_cue_out_cont_mediaconvert():
+    obj = m3u8.M3U8(playlists.CUE_OUT_MEDIACONVERT_PLAYLIST)
+    segments = obj.segments
+
+    assert segments[2].scte35_elapsedtime == "10"
+    assert segments[2].scte35_duration == "4"
+
+
 def test_segment_envivio_scte35_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_ENVIVIO_PLAYLIST)
     segments = obj.segments
@@ -241,7 +280,7 @@ def test_segment_envivio_scte35_attribute():
 def test_segment_unknown_scte35_attribute():
     obj = m3u8.M3U8(playlists.CUE_OUT_INVALID_PLAYLIST)
     assert obj.segments[0].scte35 is None
-    assert obj.segments[0].scte35_duration is None
+    assert obj.segments[0].scte35_duration == "INVALID"
 
 
 def test_segment_cue_out_no_duration():
@@ -341,6 +380,10 @@ def test_session_key_attribute_without_initialization_vector():
     assert "AES-128" == obj.session_keys[0].method
     assert "/key" == obj.session_keys[0].uri
     assert None is obj.session_keys[0].iv
+
+
+def test_parse_tag_name_matches_fully():
+    assert m3u8.M3U8(playlists.PLAYLIST_WITH_TAG_MEDIA_READY)
 
 
 def test_segments_attribute():
@@ -708,6 +751,23 @@ def test_dump_should_raise_if_create_sub_directories_fails(tmpdir):
         m3u8.M3U8(playlists.SIMPLE_PLAYLIST).dump(file_name)
 
 
+def test_create_sub_directories_with_relative_path(tmpdir, monkeypatch):
+    relative_path = os.path.join("relative", "path", "playlist.m3u8")
+
+    # Use a temporary directory as the current working directory for the test
+    monkeypatch.chdir(tmpdir)
+
+    obj = m3u8.M3U8(playlists.SIMPLE_PLAYLIST)
+
+    obj.dump(relative_path)
+
+    expected_file_path = os.path.join(tmpdir, relative_path)
+    assert os.path.exists(expected_file_path)
+
+    with open(expected_file_path) as file:
+        assert file.read().strip() == playlists.SIMPLE_PLAYLIST.strip()
+
+
 def test_dump_should_work_for_variant_streams():
     obj = m3u8.M3U8(playlists.VARIANT_PLAYLIST)
 
@@ -776,6 +836,12 @@ def test_dump_should_not_ignore_zero_duration():
     assert "EXTINF:0" in obj.dumps().strip()
     assert "EXTINF:5220" in obj.dumps().strip()
 
+    assert "EXTINF:0.000" in obj.dumps(infspec="milliseconds").strip()
+    assert "EXTINF:5220.000" in obj.dumps(infspec="milliseconds").strip()
+
+    assert "EXTINF:0.000000" in obj.dumps(infspec="microseconds").strip()
+    assert "EXTINF:5220.000000" in obj.dumps(infspec="microseconds").strip()
+
 
 def test_dump_should_use_decimal_floating_point_for_very_short_durations():
     obj = m3u8.M3U8(playlists.SIMPLE_PLAYLIST_WITH_VERY_SHORT_DURATION)
@@ -783,6 +849,14 @@ def test_dump_should_use_decimal_floating_point_for_very_short_durations():
     assert "EXTINF:5220" in obj.dumps().strip()
     assert "EXTINF:5218.5" in obj.dumps().strip()
     assert "EXTINF:0.000011" in obj.dumps().strip()
+
+    assert "EXTINF:5220.000" in obj.dumps(infspec="milliseconds").strip()
+    assert "EXTINF:5218.500" in obj.dumps(infspec="milliseconds").strip()
+    assert "EXTINF:0.000" in obj.dumps(infspec="milliseconds").strip()
+
+    assert "EXTINF:5220.000000" in obj.dumps(infspec="microseconds").strip()
+    assert "EXTINF:5218.500" in obj.dumps(infspec="microseconds").strip()
+    assert "EXTINF:0.000011" in obj.dumps(infspec="microseconds").strip()
 
 
 def test_dump_should_include_segment_level_program_date_time():
@@ -1271,6 +1345,14 @@ def test_ll_playlist():
     assert obj.preload_hint.base_uri == "http://localhost/test_base_uri"
 
 
+def test_ll_playlist_omitted_attributes():
+    # RFC 8216 4.4.5.4 states that even the required attribute LAST-MSN
+    # can be omitted in certain conditions.
+    obj = m3u8.M3U8(playlists.LOW_LATENCY_OMITTED_ATTRIBUTES)
+    text = obj.dumps()
+    assert '#EXT-X-RENDITION-REPORT:URI="rendition_1.m3u8"\n' in text
+
+
 def test_add_rendition_report_to_playlist():
     obj = m3u8.M3U8()
 
@@ -1560,6 +1642,81 @@ def test_dump_should_work_for_variant_playlists_with_image_playlists():
 def test_segment_media_sequence():
     obj = m3u8.M3U8(playlists.SLIDING_WINDOW_PLAYLIST)
     assert [s.media_sequence for s in obj.segments] == [2680, 2681, 2682]
+
+
+def test_low_latency_output():
+    obj = m3u8.M3U8(playlists.LOW_LATENCY_PART_PLAYLIST)
+    actual = obj.dumps()
+    expected = textwrap.dedent(
+        """\
+        #EXTM3U
+        #EXT-X-MEDIA-SEQUENCE:264
+        #EXT-X-VERSION:6
+        #EXT-X-TARGETDURATION:4
+        #EXT-X-SERVER-CONTROL:CAN-BLOCK-RELOAD=YES,PART-HOLD-BACK=1,CAN-SKIP-UNTIL=24
+        #EXT-X-PART-INF:PART-TARGET=0.33334
+        #EXT-X-MAP:URI="init.mp4"
+        #EXT-X-PROGRAM-DATE-TIME:2019-02-14T02:13:28.106+00:00
+        #EXTINF:4.00008,
+        fileSequence264.mp4
+        #EXTINF:4.00008,
+        fileSequence265.mp4
+        #EXTINF:4.00008,
+        fileSequence266.mp4
+        #EXTINF:4.00008,
+        fileSequence267.mp4
+        #EXTINF:4.00008,
+        fileSequence268.mp4
+        #EXTINF:4.00008,
+        fileSequence269.mp4
+        #EXTINF:4.00008,
+        fileSequence270.mp4
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.0.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.1.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.2.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.3.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.4.mp4",INDEPENDENT=YES
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.5.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.6.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.7.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.8.mp4",INDEPENDENT=YES
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.9.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.10.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart271.11.mp4"
+        #EXTINF:4.00008,
+        fileSequence271.mp4
+        #EXT-X-PROGRAM-DATE-TIME:2019-02-14T02:14:00.106+00:00
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.a.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.b.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.c.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.d.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.e.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.f.mp4",INDEPENDENT=YES
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.g.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.h.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.i.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.j.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.k.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart272.l.mp4"
+        #EXTINF:4.00008,
+        fileSequence272.mp4
+        #EXT-X-PART:DURATION=0.33334,URI="filePart273.0.mp4",INDEPENDENT=YES
+        #EXT-X-PART:DURATION=0.33334,URI="filePart273.1.mp4"
+        #EXT-X-PART:DURATION=0.33334,URI="filePart273.2.mp4"
+
+        #EXT-X-PRELOAD-HINT:TYPE=PART,URI="filePart273.3.mp4"
+        #EXT-X-RENDITION-REPORT:URI="../1M/waitForMSN.php",LAST-MSN=273,LAST-PART=2
+        #EXT-X-RENDITION-REPORT:URI="../4M/waitForMSN.php",LAST-MSN=273,LAST-PART=1
+        """
+    )
+    assert actual == expected
+
+
+def test_bitrate_settable_as_int():
+    obj = m3u8.loads(playlists.BITRATE_PLAYLIST)
+    obj.segments[0].bitrate = 9876
+
+    assert "#EXT-X-BITRATE:9876" in obj.dumps().strip()
 
 
 # custom asserts
