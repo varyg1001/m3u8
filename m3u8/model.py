@@ -47,7 +47,7 @@ class M3U8:
             /foo/bar/key.bin           -->  http://videoserver.com/hls/key.bin
             http://vid.com/segment1.ts -->  http://videoserver.com/hls/segment1.ts
 
-       can be passed as parameter or setted as an attribute to ``M3U8`` object.
+       can be passed as parameter or set as an attribute to ``M3U8`` object.
      `base_uri`
       uri the playlist comes from. it is propagated to SegmentList and Key
       ex.: http://example.com/path/to
@@ -186,9 +186,8 @@ class M3U8:
         else:
             self.data = {}
         self._base_uri = base_uri
-        if self._base_uri:
-            if not self._base_uri.endswith("/"):
-                self._base_uri += "/"
+        if self._base_uri and not self._base_uri.endswith("/"):
+            self._base_uri += "/"
 
         self._initialize_attributes()
         self.base_path = base_path
@@ -292,10 +291,15 @@ class M3U8:
             for params in self.data.get("session_keys", [])
         ]
 
-        preload_hint = self.data.get("preload_hint", None)
-        self.preload_hint = preload_hint and PreloadHint(
-            base_uri=self.base_uri, **preload_hint
-        )
+        preload_hints = self.data.get("preload_hints")
+        if preload_hints is None:
+            preload_hint = self.data.get("preload_hint")
+            preload_hints = [preload_hint] if preload_hint else []
+        self.preload_hints = [
+            PreloadHint(base_uri=self.base_uri, **hint) for hint in preload_hints
+        ]
+
+        self.tiles = [Tiles(**tiles) for tiles in self.data.get("tiles", [])]
 
         content_steering = self.data.get("content_steering", None)
         self.content_steering = content_steering and ContentSteering(
@@ -304,6 +308,15 @@ class M3U8:
 
     def __str__(self):
         return self.dumps()
+
+    @property
+    def preload_hint(self):
+        """The last EXT-X-PRELOAD-HINT, see `preload_hints` for all of them."""
+        return self.preload_hints[-1] if self.preload_hints else None
+
+    @preload_hint.setter
+    def preload_hint(self, preload_hint):
+        self.preload_hints = [preload_hint] if preload_hint else []
 
     @property
     def files(self):
@@ -334,8 +347,8 @@ class M3U8:
         for key in self.session_keys:
             if key:
                 key.base_uri = new_base_uri
-        if self.preload_hint:
-            self.preload_hint.base_uri = new_base_uri
+        for preload_hint in self.preload_hints:
+            preload_hint.base_uri = new_base_uri
         if self.content_steering:
             self.content_steering.base_uri = new_base_uri
 
@@ -363,8 +376,8 @@ class M3U8:
         self.iframe_playlists.base_path = self._base_path
         self.image_playlists.base_path = self._base_path
         self.rendition_reports.base_path = self._base_path
-        if self.preload_hint:
-            self.preload_hint.base_path = self._base_path
+        for preload_hint in self.preload_hints:
+            preload_hint.base_path = self._base_path
         if self.content_steering:
             self.content_steering.base_path = self._base_path
 
@@ -445,10 +458,13 @@ class M3U8:
         for key in self.session_keys:
             output.append(str(key))
 
+        for tiles in self.tiles:
+            output.append(str(tiles))
+
         output.append(self.segments.dumps(timespec, infspec))
 
-        if self.preload_hint:
-            output.append(str(self.preload_hint))
+        for preload_hint in self.preload_hints:
+            output.append(str(preload_hint))
 
         if self.rendition_reports:
             output.append(str(self.rendition_reports))
@@ -653,13 +669,15 @@ class Segment(BasePathMixin):
             # an unencrypted segment after an encrypted one needs METHOD=NONE
             output.append(ext_x_key + ":METHOD=NONE\n")
 
-        if self.init_section:
-            if (not last_segment) or (self.init_section != last_segment.init_section):
-                output.append(str(self.init_section))
-                output.append("\n")
-
         if self.discontinuity:
             output.append("#EXT-X-DISCONTINUITY\n")
+
+        if self.init_section and (
+            (not last_segment) or (self.init_section != last_segment.init_section)
+        ):
+            output.append(str(self.init_section))
+            output.append("\n")
+
         if self.program_date_time:
             output.append(
                 "#EXT-X-PROGRAM-DATE-TIME:%s\n"
@@ -722,7 +740,7 @@ class Segment(BasePathMixin):
             if self.byterange:
                 output.append("#EXT-X-BYTERANGE:%s\n" % self.byterange)
 
-            if self.bitrate:
+            if self.bitrate is not None:
                 output.append("#EXT-X-BITRATE:%d\n" % self.bitrate)
 
             if self.gap_tag:
@@ -831,6 +849,7 @@ class PartialSegment(BasePathMixin):
         gap=None,
         dateranges=None,
         gap_tag=None,
+        **extras,
     ):
         self.base_uri = base_uri
         self.uri = uri
@@ -844,6 +863,7 @@ class PartialSegment(BasePathMixin):
             [DateRange(**daterange) for daterange in dateranges] if dateranges else []
         )
         self.gap_tag = gap_tag
+        self.extras = extras
 
     def dumps(self, last_segment):
         output = []
@@ -868,6 +888,9 @@ class PartialSegment(BasePathMixin):
 
         if self.gap:
             output.append(",GAP=%s" % self.gap)
+
+        for attribute in _extras_attributes(self.extras):
+            output.append("," + attribute)
 
         return "".join(output)
 
@@ -931,6 +954,7 @@ class Key(BasePathMixin):
             output.append('KEYFORMAT="%s"' % self.keyformat)
         if self.keyformatversions:
             output.append('KEYFORMATVERSIONS="%s"' % self.keyformatversions)
+        output.extend(_extras_attributes(self._extra_params))
 
         return self.tag + ":" + ",".join(output)
 
@@ -970,10 +994,11 @@ class InitializationSection(BasePathMixin):
 
     tag = ext_x_map
 
-    def __init__(self, base_uri, uri, byterange=None):
+    def __init__(self, base_uri, uri, byterange=None, **extras):
         self.base_uri = base_uri
         self.uri = uri
         self.byterange = byterange
+        self.extras = extras
 
     def __str__(self):
         output = []
@@ -981,6 +1006,7 @@ class InitializationSection(BasePathMixin):
             output.append("URI=" + quoted(self.uri))
         if self.byterange:
             output.append("BYTERANGE=" + quoted(self.byterange))
+        output.extend(_extras_attributes(self.extras))
         return "{tag}:{attributes}".format(tag=self.tag, attributes=",".join(output))
 
     def __eq__(self, other):
@@ -1078,9 +1104,11 @@ class Playlist(BasePathMixin):
             video_range=stream_info.get("video_range"),
             hdcp_level=stream_info.get("hdcp_level"),
             pathway_id=stream_info.get("pathway_id"),
-            characteristics=stream_info.get('characteristics'),
+            characteristics=stream_info.get("characteristics"),
             stable_variant_id=stream_info.get("stable_variant_id"),
             req_video_layout=stream_info.get("req_video_layout"),
+            score=stream_info.get("score"),
+            allowed_cpc=stream_info.get("allowed_cpc"),
         )
         self.media = []
         for media_type in ("audio", "video", "subtitles"):
@@ -1146,9 +1174,11 @@ class IFramePlaylist(BasePathMixin):
             hdcp_level=iframe_stream_info.get("hdcp_level"),
             frame_rate=None,
             pathway_id=iframe_stream_info.get("pathway_id"),
-            characteristics=iframe_stream_info.get('characteristics'),
+            characteristics=iframe_stream_info.get("characteristics"),
             stable_variant_id=iframe_stream_info.get("stable_variant_id"),
-            req_video_layout=None,
+            req_video_layout=iframe_stream_info.get("req_video_layout"),
+            score=iframe_stream_info.get("score"),
+            allowed_cpc=iframe_stream_info.get("allowed_cpc"),
         )
 
     def __str__(self):
@@ -1190,6 +1220,29 @@ class IFramePlaylist(BasePathMixin):
             iframe_stream_inf.append(
                 "STABLE-VARIANT-ID=" + quoted(self.iframe_stream_info.stable_variant_id)
             )
+        if self.iframe_stream_info.supplemental_codecs:
+            iframe_stream_inf.append(
+                "SUPPLEMENTAL-CODECS="
+                + quoted(self.iframe_stream_info.supplemental_codecs)
+            )
+        if self.iframe_stream_info.characteristics:
+            iframe_stream_inf.append(
+                "CHARACTERISTICS=" + quoted(self.iframe_stream_info.characteristics)
+            )
+        if self.iframe_stream_info.req_video_layout:
+            iframe_stream_inf.append(
+                "REQ-VIDEO-LAYOUT=" + quoted(self.iframe_stream_info.req_video_layout)
+            )
+        if self.iframe_stream_info.score is not None:
+            iframe_stream_inf.append(
+                "SCORE=" + number_to_string(self.iframe_stream_info.score)
+            )
+        if self.iframe_stream_info.allowed_cpc:
+            iframe_stream_inf.append(
+                "ALLOWED-CPC=" + quoted(self.iframe_stream_info.allowed_cpc)
+            )
+        if self.iframe_stream_info.video:
+            iframe_stream_inf.append("VIDEO=" + quoted(self.iframe_stream_info.video))
 
         return "#EXT-X-I-FRAME-STREAM-INF:" + ",".join(iframe_stream_inf)
 
@@ -1212,6 +1265,8 @@ class StreamInfo:
     characteristics = None
     stable_variant_id = None
     req_video_layout = None
+    score = None
+    allowed_cpc = None
 
     def __init__(self, **kwargs):
         self.bandwidth = kwargs.get("bandwidth")
@@ -1231,6 +1286,8 @@ class StreamInfo:
         self.characteristics = kwargs.get("characteristics")
         self.stable_variant_id = kwargs.get("stable_variant_id")
         self.req_video_layout = kwargs.get("req_video_layout")
+        self.score = kwargs.get("score")
+        self.allowed_cpc = kwargs.get("allowed_cpc")
 
     def __str__(self):
         stream_inf = []
@@ -1253,9 +1310,7 @@ class StreamInfo:
         if self.codecs is not None:
             stream_inf.append("CODECS=" + quoted(self.codecs))
         if self.supplemental_codecs is not None:
-            stream_inf.append(
-                "SUPPLEMENTAL-CODECS=" + quoted(self.supplemental_codecs)
-            )
+            stream_inf.append("SUPPLEMENTAL-CODECS=" + quoted(self.supplemental_codecs))
         if self.video_range is not None:
             stream_inf.append("VIDEO-RANGE=%s" % self.video_range)
         if self.hdcp_level is not None:
@@ -1263,11 +1318,15 @@ class StreamInfo:
         if self.pathway_id is not None:
             stream_inf.append("PATHWAY-ID=" + quoted(self.pathway_id))
         if self.characteristics is not None:
-            stream_inf.append('CHARACTERISTICS=' + quoted(self.characteristics))
+            stream_inf.append("CHARACTERISTICS=" + quoted(self.characteristics))
         if self.stable_variant_id is not None:
             stream_inf.append("STABLE-VARIANT-ID=" + quoted(self.stable_variant_id))
         if self.req_video_layout is not None:
             stream_inf.append("REQ-VIDEO-LAYOUT=" + quoted(self.req_video_layout))
+        if self.score is not None:
+            stream_inf.append("SCORE=" + number_to_string(self.score))
+        if self.allowed_cpc is not None:
+            stream_inf.append("ALLOWED-CPC=" + quoted(self.allowed_cpc))
         return ",".join(stream_inf)
 
 
@@ -1291,6 +1350,8 @@ class Media(BasePathMixin):
     `characteristics`
     `channels`
     `stable_rendition_id`
+    `bit_depth`
+    `sample_rate`
       attributes in the EXT-MEDIA tag
 
     `base_uri`
@@ -1300,7 +1361,7 @@ class Media(BasePathMixin):
     def __init__(
         self,
         uri=None,
-        type=None,
+        type=None,  # noqa: A002
         group_id=None,
         language=None,
         name=None,
@@ -1310,6 +1371,8 @@ class Media(BasePathMixin):
         characteristics=None,
         channels=None,
         stable_rendition_id=None,
+        bit_depth=None,
+        sample_rate=None,
         assoc_language=None,
         instream_id=None,
         base_uri=None,
@@ -1329,6 +1392,8 @@ class Media(BasePathMixin):
         self.characteristics = characteristics
         self.channels = channels
         self.stable_rendition_id = stable_rendition_id
+        self.bit_depth = bit_depth
+        self.sample_rate = sample_rate
         self.extras = extras
 
     def dumps(self):
@@ -1360,6 +1425,13 @@ class Media(BasePathMixin):
             media_out.append("CHANNELS=" + quoted(self.channels))
         if self.stable_rendition_id:
             media_out.append("STABLE-RENDITION-ID=" + quoted(self.stable_rendition_id))
+        if self.bit_depth is not None:
+            media_out.append("BIT-DEPTH=%d" % self.bit_depth)
+        if self.sample_rate is not None:
+            media_out.append("SAMPLE-RATE=%d" % self.sample_rate)
+        media_out.extend(
+            _extras_attributes(self.extras, quoted_names=("thumbnails", "image"))
+        )
 
         return "#EXT-X-MEDIA:" + ",".join(media_out)
 
@@ -1388,24 +1460,27 @@ class SessionDataList(TagList):
 
 
 class Start:
-    def __init__(self, time_offset, precise=None):
+    def __init__(self, time_offset, precise=None, **extras):
         self.time_offset = float(time_offset)
         self.precise = precise
+        self.extras = extras
 
     def __str__(self):
         output = ["TIME-OFFSET=" + str(self.time_offset)]
         if self.precise and self.precise in ["YES", "NO"]:
             output.append("PRECISE=" + str(self.precise))
+        output.extend(_extras_attributes(self.extras))
 
         return ext_x_start + ":" + ",".join(output)
 
 
 class RenditionReport(BasePathMixin):
-    def __init__(self, base_uri, uri, last_msn=None, last_part=None):
+    def __init__(self, base_uri, uri, last_msn=None, last_part=None, **extras):
         self.base_uri = base_uri
         self.uri = uri
         self.last_msn = last_msn
         self.last_part = last_part
+        self.extras = extras
 
     def dumps(self):
         report = []
@@ -1414,6 +1489,7 @@ class RenditionReport(BasePathMixin):
             report.append("LAST-MSN=" + str(self.last_msn))
         if self.last_part is not None:
             report.append("LAST-PART=" + str(self.last_part))
+        report.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-RENDITION-REPORT:" + ",".join(report)
 
@@ -1435,7 +1511,9 @@ class ServerControl:
         hold_back=None,
         part_hold_back=None,
         can_skip_dateranges=None,
+        **extras,
     ):
+        self.extras = extras
         self.can_skip_until = can_skip_until
         self.can_block_reload = can_block_reload
         self.hold_back = hold_back
@@ -1451,16 +1529,17 @@ class ServerControl:
             ctrl.append("CAN-BLOCK-RELOAD=%s" % self.can_block_reload)
 
         for attr in ["hold_back", "part_hold_back"]:
-            if self[attr]:
+            if self[attr] is not None:
                 ctrl.append(
                     "%s=%s"
                     % (denormalize_attribute(attr), number_to_string(self[attr]))
                 )
 
-        if self.can_skip_until:
+        if self.can_skip_until is not None:
             ctrl.append("CAN-SKIP-UNTIL=%s" % number_to_string(self.can_skip_until))
             if self.can_skip_dateranges:
                 ctrl.append("CAN-SKIP-DATERANGES=%s" % self.can_skip_dateranges)
+        ctrl.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-SERVER-CONTROL:" + ",".join(ctrl)
 
@@ -1469,9 +1548,10 @@ class ServerControl:
 
 
 class Skip:
-    def __init__(self, skipped_segments, recently_removed_dateranges=None):
+    def __init__(self, skipped_segments, recently_removed_dateranges=None, **extras):
         self.skipped_segments = skipped_segments
         self.recently_removed_dateranges = recently_removed_dateranges
+        self.extras = extras
 
     def dumps(self):
         skip = []
@@ -1481,6 +1561,7 @@ class Skip:
                 "RECENTLY-REMOVED-DATERANGES=%s"
                 % quoted(self.recently_removed_dateranges)
             )
+        skip.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-SKIP:" + ",".join(skip)
 
@@ -1489,11 +1570,14 @@ class Skip:
 
 
 class PartInformation:
-    def __init__(self, part_target=None):
+    def __init__(self, part_target=None, **extras):
         self.part_target = part_target
+        self.extras = extras
 
     def dumps(self):
-        return "#EXT-X-PART-INF:PART-TARGET=%s" % number_to_string(self.part_target)
+        part_inf = ["PART-TARGET=%s" % number_to_string(self.part_target)]
+        part_inf.extend(_extras_attributes(self.extras))
+        return "#EXT-X-PART-INF:" + ",".join(part_inf)
 
     def __str__(self):
         return self.dumps()
@@ -1501,13 +1585,20 @@ class PartInformation:
 
 class PreloadHint(BasePathMixin):
     def __init__(
-        self, type, base_uri, uri, byterange_start=None, byterange_length=None
+        self,
+        type,  # noqa: A002
+        base_uri,
+        uri,
+        byterange_start=None,
+        byterange_length=None,
+        **extras,
     ):
         self.hint_type = type
         self.base_uri = base_uri
         self.uri = uri
         self.byterange_start = byterange_start
         self.byterange_length = byterange_length
+        self.extras = extras
 
     def __getitem__(self, item):
         return getattr(self, item)
@@ -1520,6 +1611,7 @@ class PreloadHint(BasePathMixin):
         for attr in ["byterange_start", "byterange_length"]:
             if self[attr] is not None:
                 hint.append(f"{denormalize_attribute(attr)}={self[attr]}")
+        hint.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-PRELOAD-HINT:" + ",".join(hint)
 
@@ -1528,21 +1620,23 @@ class PreloadHint(BasePathMixin):
 
 
 class SessionData:
-    def __init__(self, data_id, value=None, uri=None, language=None):
+    def __init__(self, data_id, value=None, uri=None, language=None, **extras):
         self.data_id = data_id
         self.value = value
         self.uri = uri
         self.language = language
+        self.extras = extras
 
     def dumps(self):
         session_data_out = ["DATA-ID=" + quoted(self.data_id)]
 
-        if self.value:
+        if self.value is not None:
             session_data_out.append("VALUE=" + quoted(self.value))
         elif self.uri:
             session_data_out.append("URI=" + quoted(self.uri))
         if self.language:
             session_data_out.append("LANGUAGE=" + quoted(self.language))
+        session_data_out.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-SESSION-DATA:" + ",".join(session_data_out)
 
@@ -1555,6 +1649,19 @@ class DateRangeList(TagList):
 
 
 class DateRange:
+    KNOWN_ATTRIBUTES = (
+        "id",
+        "start_date",
+        "class",
+        "end_date",
+        "duration",
+        "planned_duration",
+        "scte35_cmd",
+        "scte35_out",
+        "scte35_in",
+        "end_on_next",
+    )
+
     def __init__(self, **kwargs):
         self.id = kwargs["id"]
         self.start_date = kwargs.get("start_date")
@@ -1566,6 +1673,11 @@ class DateRange:
         self.scte35_out = kwargs.get("scte35_out")
         self.scte35_in = kwargs.get("scte35_in")
         self.end_on_next = kwargs.get("end_on_next")
+        self.extras = {
+            name: value
+            for name, value in kwargs.items()
+            if name not in self.KNOWN_ATTRIBUTES and not name.startswith("x_")
+        }
         self.x_client_attrs = [
             (attr, kwargs.get(attr)) for attr in kwargs if attr.startswith("x_")
         ]
@@ -1584,9 +1696,9 @@ class DateRange:
             daterange.append("CLASS=" + quoted(self.class_))
         if self.end_date:
             daterange.append("END-DATE=" + quoted(_format_date(self.end_date)))
-        if self.duration:
+        if self.duration is not None:
             daterange.append("DURATION=" + number_to_string(self.duration))
-        if self.planned_duration:
+        if self.planned_duration is not None:
             daterange.append(
                 "PLANNED-DURATION=" + number_to_string(self.planned_duration)
             )
@@ -1602,6 +1714,7 @@ class DateRange:
         # client attributes sorted alphabetically output order is predictable
         for attr, value in sorted(self.x_client_attrs):
             daterange.append(f"{denormalize_attribute(attr)}={value}")
+        daterange.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-DATERANGE:" + ",".join(daterange)
 
@@ -1610,10 +1723,11 @@ class DateRange:
 
 
 class ContentSteering(BasePathMixin):
-    def __init__(self, base_uri, server_uri, pathway_id=None):
+    def __init__(self, base_uri, server_uri, pathway_id=None, **extras):
         self.base_uri = base_uri
         self.uri = server_uri
         self.pathway_id = pathway_id
+        self.extras = extras
 
     def dumps(self):
         steering = []
@@ -1621,6 +1735,7 @@ class ContentSteering(BasePathMixin):
 
         if self.pathway_id is not None:
             steering.append("PATHWAY-ID=" + quoted(self.pathway_id))
+        steering.extend(_extras_attributes(self.extras))
 
         return "#EXT-X-CONTENT-STEERING:" + ",".join(steering)
 
@@ -1718,16 +1833,18 @@ class Tiles(BasePathMixin):
       duration attribute from EXT-X-TILES tag
     """
 
-    def __init__(self, resolution, layout, duration):
+    def __init__(self, resolution, layout, duration, **extras):
         self.resolution = resolution
         self.layout = layout
         self.duration = duration
+        self.extras = extras
 
     def dumps(self):
         tiles = []
         tiles.append("RESOLUTION=" + self.resolution)
         tiles.append("LAYOUT=" + self.layout)
-        tiles.append("DURATION=" + self.duration)
+        tiles.append("DURATION=" + number_to_string(self.duration))
+        tiles.extend(_extras_attributes(self.extras, quoted_names=("uri",)))
 
         return "#EXT-X-TILES:" + ",".join(tiles)
 
@@ -1739,16 +1856,16 @@ def find_key(keydata, keylist):
     if not keydata:
         return None
     for key in keylist:
-        if key:
-            # Check the intersection of keys and values
-            if (
-                keydata.get("uri", None) == key.uri
-                and keydata.get("method", "NONE") == key.method
-                and keydata.get("iv", None) == key.iv
-                and keydata.get("keyformat", None) == key.keyformat
-                and keydata.get("keyformatversions", None) == key.keyformatversions
-            ):
-                return key
+        # Check the intersection of keys and values
+        if (
+            key
+            and keydata.get("uri", None) == key.uri
+            and keydata.get("method", "NONE") == key.method
+            and keydata.get("iv", None) == key.iv
+            and keydata.get("keyformat", None) == key.keyformat
+            and keydata.get("keyformatversions", None) == key.keyformatversions
+        ):
+            return key
     raise KeyError("No key found for key data")
 
 
@@ -1758,6 +1875,15 @@ def denormalize_attribute(attribute):
 
 def quoted(string):
     return '"%s"' % string
+
+
+def _extras_attributes(extras, quoted_names=()):
+    """Attributes this library has no model for, to write them back unchanged."""
+    return [
+        f"{denormalize_attribute(name)}="
+        + (quoted(value) if name in quoted_names else str(value))
+        for name, value in extras.items()
+    ]
 
 
 def _format_date(value):

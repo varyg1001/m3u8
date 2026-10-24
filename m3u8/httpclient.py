@@ -8,11 +8,11 @@ class DefaultHTTPClient:
     def __init__(self, proxies=None):
         self.proxies = proxies
 
-    def download(self, uri, timeout=None, headers={}, verify_ssl=True):
+    def download(self, uri, timeout=None, headers=None, verify_ssl=True):
         proxy_handler = urllib.request.ProxyHandler(self.proxies)
         https_handler = HTTPSHandler(verify_ssl=verify_ssl)
         opener = urllib.request.build_opener(proxy_handler, https_handler)
-        opener.addheaders = headers.items()
+        opener.addheaders = (headers or {}).items()
         resource = opener.open(uri, timeout=timeout)
         base_uri = urljoin(resource.geturl(), ".")
 

@@ -2,6 +2,8 @@
 # Use of this source code is governed by a MIT License
 # license that can be found in the LICENSE file.
 
+import textwrap
+
 import playlists
 
 import m3u8
@@ -448,3 +450,61 @@ CODECS="jpeg",URI="thumbnails-sd.m3u8"
 CODECS="jpeg",URI="thumbnails-hd.m3u8"
 """
     assert expected_content == variant_m3u8.dumps()
+
+
+def test_score_and_allowed_cpc_round_trip():
+    playlist = textwrap.dedent(
+        """\
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=1000,SCORE=2.5,ALLOWED-CPC="com.example.drm1:SMART-TV/PC,com.example.drm2:HW"
+        video.m3u8
+        """
+    )
+    obj = m3u8.loads(playlist)
+    stream_info = obj.playlists[0].stream_info
+
+    assert stream_info.score == 2.5
+    assert stream_info.allowed_cpc == "com.example.drm1:SMART-TV/PC,com.example.drm2:HW"
+    assert obj.dumps().strip() == playlist.strip()
+
+
+def test_i_frame_stream_inf_keeps_attributes_added_in_rfc8216bis():
+    playlist = textwrap.dedent(
+        """\
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=1000
+        video.m3u8
+        #EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1000,URI="iframe.m3u8",SUPPLEMENTAL-CODECS="dvh1.05",REQ-VIDEO-LAYOUT="CH-STEREO",SCORE=1.5,ALLOWED-CPC="com.example.drm1:HW"
+        """
+    )
+    obj = m3u8.loads(playlist)
+    stream_info = obj.iframe_playlists[0].iframe_stream_info
+
+    assert stream_info.supplemental_codecs == "dvh1.05"
+    assert stream_info.req_video_layout == "CH-STEREO"
+    assert stream_info.score == 1.5
+    assert stream_info.allowed_cpc == "com.example.drm1:HW"
+    dumped = obj.dumps()
+    for attribute in (
+        'SUPPLEMENTAL-CODECS="dvh1.05"',
+        'REQ-VIDEO-LAYOUT="CH-STEREO"',
+        "SCORE=1.5",
+        'ALLOWED-CPC="com.example.drm1:HW"',
+    ):
+        assert attribute in dumped
+
+
+def test_media_bit_depth_and_sample_rate_round_trip():
+    playlist = textwrap.dedent(
+        """\
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=1000
+        video.m3u8
+        #EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="lossless",NAME="en",URI="audio.m3u8",BIT-DEPTH=24,SAMPLE-RATE=48000
+        """
+    )
+    obj = m3u8.loads(playlist)
+
+    assert obj.media[0].bit_depth == 24
+    assert obj.media[0].sample_rate == 48000
+    assert "BIT-DEPTH=24,SAMPLE-RATE=48000" in obj.dumps()

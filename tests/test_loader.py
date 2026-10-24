@@ -4,13 +4,13 @@
 
 import os
 import socket
-import urllib.parse
 import unittest.mock
+import urllib.parse
 
+import playlists
 import pytest
 
 import m3u8
-import playlists
 
 
 def test_loads_should_create_object_from_string():
@@ -126,7 +126,7 @@ def test_there_should_not_be_absolute_uris_with_loads():
         content = f.read()
     obj = m3u8.loads(content)
     with pytest.raises(ValueError) as e:
-        obj.keys[0].absolute_uri
+        _ = obj.keys[0].absolute_uri
     assert str(e.value) == "There can not be `absolute_uri` with no `base_uri` set"
 
 
@@ -146,9 +146,9 @@ def test_raise_timeout_exception_if_timeout_happens_when_loading_from_uri():
     try:
         m3u8.load(playlists.TIMEOUT_SIMPLE_PLAYLIST_URI, timeout=1)
     except socket.timeout:
-        assert True
+        pass
     else:
-        assert False
+        raise AssertionError("expected a timeout")
 
 
 def test_windows_paths():

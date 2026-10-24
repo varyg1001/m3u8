@@ -4,11 +4,11 @@
 
 # Test server to deliver stubed M3U8s
 
-from os.path import dirname, abspath, join
-
-from bottle import route, run, response, redirect
-import bottle
 import time
+from os.path import abspath, dirname, join
+
+import bottle
+from bottle import redirect, response, route, run
 
 playlists = abspath(join(dirname(__file__), "playlists"))
 

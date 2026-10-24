@@ -35,9 +35,7 @@ def test_should_fail_if_EXT_X_MEDIA_SEQUENCE_is_not_a_number():
 
 
 def test_should_validate_supported_EXT_X_VERSION():
-    with pytest.raises(
-        Exception,
-    ):
+    with pytest.raises(Exception):  # noqa: B017
         m3u8.parse(invalid_versioned_playlists.M3U8_RULE_IV, strict=True)
 
 

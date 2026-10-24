@@ -68,6 +68,7 @@ def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None
         "iframe_playlists": [],
         "image_playlists": [],
         "tiles": [],
+        "preload_hints": [],
         "media": [],
         "keys": [],
         "rendition_reports": [],
@@ -243,11 +244,7 @@ def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None
             _parse_tiles(**parse_kwargs)
 
         # #EXTM3U should be present.
-        elif line.startswith(protocol.ext_m3u):
-            pass
-
-        # Blank lines are ignored.
-        elif line.strip() == "":
+        elif line.startswith(protocol.ext_m3u) or line.strip() == "":
             pass
 
         # Lines that don't start with # are either segments or playlists.
@@ -324,14 +321,25 @@ def _parse_define(line, lineno, data, state, strict, **kwargs):
     data["defines"].append(attributes)
 
 
+KEY_ATTRIBUTES = ("method", "uri", "iv", "keyformat", "keyformatversions")
+
+
+def _parse_key_attributes(params):
+    key = {}
+    for param in params:
+        name, value = param.split("=", 1)
+        name = normalize_attribute(name)
+        # The quotes of the attributes without a model are kept, so that they
+        # can be written back as they were.
+        key[name] = remove_quotes(value) if name in KEY_ATTRIBUTES else value
+    return key
+
+
 def _parse_key(line, data, state, **kwargs):
     params = ATTRIBUTELISTPATTERN.split(line.replace(protocol.ext_x_key + ":", ""))[
         1::2
     ]
-    key = {}
-    for param in params:
-        name, value = param.split("=", 1)
-        key[normalize_attribute(name)] = remove_quotes(value)
+    key = _parse_key_attributes(params)
 
     state["current_key"] = key
     # A key replaces an earlier one of the same KEYFORMAT, keys of other
@@ -443,8 +451,10 @@ def _parse_stream_inf(line, data, state, **kwargs):
         "stable_variant_id",
         "characteristics",
         "req_video_layout",
+        "allowed_cpc",
     )
     attribute_parser["program_id"] = int
+    attribute_parser["score"] = float
     attribute_parser["bandwidth"] = lambda x: int(float(x))
     attribute_parser["average_bandwidth"] = int
     attribute_parser["frame_rate"] = float
@@ -456,9 +466,17 @@ def _parse_stream_inf(line, data, state, **kwargs):
 
 def _parse_i_frame_stream_inf(line, data, **kwargs):
     attribute_parser = remove_quotes_parser(
-        "codecs", "uri", "pathway_id", "stable_variant_id"
+        "codecs",
+        "supplemental_codecs",
+        "uri",
+        "pathway_id",
+        "stable_variant_id",
+        "characteristics",
+        "req_video_layout",
+        "allowed_cpc",
     )
     attribute_parser["program_id"] = int
+    attribute_parser["score"] = float
     attribute_parser["bandwidth"] = int
     attribute_parser["average_bandwidth"] = int
     attribute_parser["hdcp_level"] = str
@@ -519,6 +537,8 @@ def _parse_media(line, data, **kwargs):
         "thumbnails",
         "image",
     )
+    quoted["bit_depth"] = int
+    quoted["sample_rate"] = int
     media = _parse_attribute_list(protocol.ext_x_media, line, quoted)
     data["media"].append(media)
 
@@ -783,11 +803,7 @@ def _parse_session_key(line, data, **kwargs):
     params = ATTRIBUTELISTPATTERN.split(
         line.replace(protocol.ext_x_session_key + ":", "")
     )[1::2]
-    key = {}
-    for param in params:
-        name, value = param.split("=", 1)
-        key[normalize_attribute(name)] = remove_quotes(value)
-    data["session_keys"].append(key)
+    data["session_keys"].append(_parse_key_attributes(params))
 
 
 def _parse_preload_hint(line, data, **kwargs):
@@ -796,9 +812,11 @@ def _parse_preload_hint(line, data, **kwargs):
     attribute_parser["byterange_start"] = int
     attribute_parser["byterange_length"] = int
 
-    data["preload_hint"] = _parse_attribute_list(
+    preload_hint = _parse_attribute_list(
         protocol.ext_x_preload_hint, line, attribute_parser
     )
+    data["preload_hints"].append(preload_hint)
+    data["preload_hint"] = preload_hint
 
 
 def _parse_daterange(line, state, **kwargs):
