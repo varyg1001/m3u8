@@ -81,15 +81,19 @@ def loads(content, uri=None, custom_tags_parser=None):
 def load(
     uri,
     timeout=None,
-    headers={},
+    headers=None,
     custom_tags_parser=None,
-    http_client=DefaultHTTPClient(),
+    http_client=None,
     verify_ssl=True,
 ):
     """
     Retrieves the content from a given URI and returns a M3U8 object.
     Raises ValueError if invalid content or IOError if request fails.
     """
+    if headers is None:
+        headers = {}
+    if http_client is None:
+        http_client = DefaultHTTPClient()
     base_uri_parts = urlsplit(uri)
     if base_uri_parts.scheme and base_uri_parts.netloc:
         content, base_uri = http_client.download(uri, timeout, headers, verify_ssl)
