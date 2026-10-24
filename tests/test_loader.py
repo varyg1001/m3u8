@@ -160,3 +160,41 @@ def test_windows_paths():
         obj = m3u8.load(file_path)
     assert obj.segments[0].uri == "C:\\HLS Video\\test1.ts"
     assert obj.segments[0].absolute_uri == "C:\\HLS Video\\test1.ts"
+
+
+def test_loads_accepts_strict_mode():
+    content = "#EXT-X-TARGETDURATION:5\n#EXTINF:5,\na.ts\n"
+
+    assert len(m3u8.loads(content).segments) == 1
+    with pytest.raises(m3u8.ParseError):
+        m3u8.loads(content, strict=True)
+
+
+def test_load_from_file_accepts_strict_mode(tmp_path):
+    playlist = tmp_path / "bad.m3u8"
+    playlist.write_text("#EXT-X-TARGETDURATION:5\n#EXTINF:5,\na.ts\n")
+
+    assert len(m3u8.load(str(playlist)).segments) == 1
+    with pytest.raises(m3u8.ParseError):
+        m3u8.load(str(playlist), strict=True)
+
+
+def test_load_passes_strict_mode_to_the_playlist():
+    class Client:
+        def download(self, uri, timeout, headers, verify_ssl):
+            return "#EXT-X-TARGETDURATION:5\n#EXTINF:5,\na.ts\n", "http://h/"
+
+    with pytest.raises(m3u8.ParseError):
+        m3u8.load("http://h/a.m3u8", http_client=Client(), strict=True)
+
+
+def test_playlist_knows_the_uri_it_was_loaded_from():
+    class Client:
+        def download(self, uri, timeout, headers, verify_ssl):
+            return "#EXTM3U\n", "http://h/"
+
+    uri = "http://h/a.m3u8?token=1"
+
+    assert m3u8.load(uri, http_client=Client()).uri == uri
+    assert m3u8.loads("#EXTM3U\n", uri=uri).uri == uri
+    assert m3u8.loads("#EXTM3U\n").uri is None

@@ -33,7 +33,9 @@ class M3U8:
        the m3u8 content as string
 
      `uri`
-       the URI of the playlist, the source of the EXT-X-DEFINE QUERYPARAM variables
+       the URI of the playlist, the source of the EXT-X-DEFINE QUERYPARAM variables.
+       It is available as the attribute `uri`, `None` when the playlist was not
+       loaded from a URI.
 
      `imports`
        dictionary of the variables of the Multivariant Playlist, the source of the
@@ -185,6 +187,7 @@ class M3U8:
             self.data = parse(content, strict, custom_tags_parser, uri, imports)
         else:
             self.data = {}
+        self.uri = uri
         self._base_uri = base_uri
         if self._base_uri and not self._base_uri.endswith("/"):
             self._base_uri += "/"

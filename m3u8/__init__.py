@@ -66,16 +66,22 @@ __all__ = (
 )
 
 
-def loads(content, uri=None, custom_tags_parser=None, imports=None):
+def loads(content, uri=None, custom_tags_parser=None, imports=None, strict=False):
     """
     Given a string with a m3u8 content, returns a M3U8 object.
     Optionally parses a uri to set a correct base_uri on the M3U8 object.
     `imports` are the `variables` of the Multivariant Playlist, see EXT-X-DEFINE.
+    `strict` raises a ParseError, a ValueError, for what the specification forbids.
     Raises ValueError if invalid content
     """
 
     if uri is None:
-        return M3U8(content, custom_tags_parser=custom_tags_parser, imports=imports)
+        return M3U8(
+            content,
+            custom_tags_parser=custom_tags_parser,
+            imports=imports,
+            strict=strict,
+        )
     else:
         base_uri = urljoin(uri, ".")
         return M3U8(
@@ -84,6 +90,7 @@ def loads(content, uri=None, custom_tags_parser=None, imports=None):
             custom_tags_parser=custom_tags_parser,
             uri=uri,
             imports=imports,
+            strict=strict,
         )
 
 
@@ -95,10 +102,12 @@ def load(
     http_client=None,
     verify_ssl=True,
     imports=None,
+    strict=False,
 ):
     """
     Retrieves the content from a given URI and returns a M3U8 object.
     `imports` are the `variables` of the Multivariant Playlist, see EXT-X-DEFINE.
+    `strict` raises a ParseError, a ValueError, for what the specification forbids.
     Raises ValueError if invalid content or IOError if request fails.
     """
     if headers is None:
@@ -114,12 +123,13 @@ def load(
             custom_tags_parser=custom_tags_parser,
             uri=uri,
             imports=imports,
+            strict=strict,
         )
     else:
-        return _load_from_file(uri, custom_tags_parser, imports)
+        return _load_from_file(uri, custom_tags_parser, imports, strict)
 
 
-def _load_from_file(uri, custom_tags_parser=None, imports=None):
+def _load_from_file(uri, custom_tags_parser=None, imports=None, strict=False):
     with open(uri, encoding="utf8") as fileobj:
         raw_content = fileobj.read().strip()
     base_uri = os.path.dirname(uri)
@@ -128,4 +138,5 @@ def _load_from_file(uri, custom_tags_parser=None, imports=None):
         base_uri=base_uri,
         custom_tags_parser=custom_tags_parser,
         imports=imports,
+        strict=strict,
     )
