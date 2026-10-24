@@ -580,7 +580,7 @@ def _parse_cueout_cont(line, state, **kwargs):
         state["current_cue_out_duration"] = duration
 
     scte35 = cue_info.get("scte35")
-    if duration:
+    if scte35:
         state["current_cue_out_scte35"] = scte35
 
     elapsedtime = cue_info.get("elapsedtime")
