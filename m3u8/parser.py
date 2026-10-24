@@ -659,19 +659,23 @@ def _parse_part(line, state, **kwargs):
 
     part = _parse_attribute_list(protocol.ext_x_part, line, attribute_parser)
 
-    # this should always be true according to spec
-    if state.get("current_program_date_time"):
-        part["program_date_time"] = state["current_program_date_time"]
-        state["current_program_date_time"] += timedelta(seconds=part["duration"])
-
-    part["dateranges"] = state.pop("dateranges", None)
-    part["gap_tag"] = state.pop("gap", None)
-
     if "segment" not in state:
         state["segment"] = {}
     segment = state["segment"]
     if "parts" not in segment:
         segment["parts"] = []
+
+    # this should always be true according to spec
+    if state.get("current_program_date_time"):
+        # The clock only moves past the whole segment (see _parse_ts_chunk),
+        # so a part starts after the parts that precede it in the same segment.
+        elapsed = sum(p["duration"] for p in segment["parts"])
+        part["program_date_time"] = state["current_program_date_time"] + timedelta(
+            seconds=elapsed
+        )
+
+    part["dateranges"] = state.pop("dateranges", None)
+    part["gap_tag"] = state.pop("gap", None)
 
     segment["parts"].append(part)
 

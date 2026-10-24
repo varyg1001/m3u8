@@ -1762,6 +1762,33 @@ def test_base_path_ignores_slash_in_uri_fragment():
     assert segment.base_path == "video"
 
 
+def test_parts_do_not_advance_segment_program_date_time_twice():
+    obj = m3u8.loads(
+        textwrap.dedent(
+            """\
+            #EXTM3U
+            #EXT-X-TARGETDURATION:2
+            #EXT-X-PROGRAM-DATE-TIME:2020-01-01T00:00:00Z
+            #EXT-X-PART:DURATION=1,URI="p1.m4s"
+            #EXT-X-PART:DURATION=1,URI="p2.m4s"
+            #EXTINF:2,
+            s1.m4s
+            #EXTINF:2,
+            s2.m4s
+            """
+        )
+    )
+    start = datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc)
+    one_second = datetime.timedelta(seconds=1)
+
+    assert obj.segments[0].current_program_date_time == start
+    assert obj.segments[1].current_program_date_time == start + 2 * one_second
+    assert [p.program_date_time for p in obj.segments[0].parts] == [
+        start,
+        start + one_second,
+    ]
+
+
 def test_key_is_hashable_and_compares_only_with_keys():
     key = m3u8.model.Key("AES-128", "http://h/", uri="k")
     same = m3u8.model.Key("AES-128", "http://h/", uri="k")
