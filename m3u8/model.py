@@ -1142,6 +1142,7 @@ class Playlist(BasePathMixin):
             req_video_layout=stream_info.get("req_video_layout"),
             score=stream_info.get("score"),
             allowed_cpc=stream_info.get("allowed_cpc"),
+            extras=_unknown_stream_attributes(stream_info),
         )
         self.media = []
         for media_type in ("audio", "video", "subtitles"):
@@ -1212,6 +1213,7 @@ class IFramePlaylist(BasePathMixin):
             req_video_layout=iframe_stream_info.get("req_video_layout"),
             score=iframe_stream_info.get("score"),
             allowed_cpc=iframe_stream_info.get("allowed_cpc"),
+            extras=_unknown_stream_attributes(iframe_stream_info),
         )
 
     def __str__(self):
@@ -1276,11 +1278,35 @@ class IFramePlaylist(BasePathMixin):
             )
         if self.iframe_stream_info.video:
             iframe_stream_inf.append("VIDEO=" + quoted(self.iframe_stream_info.video))
+        iframe_stream_inf.extend(_extras_attributes(self.iframe_stream_info.extras))
 
         return "#EXT-X-I-FRAME-STREAM-INF:" + ",".join(iframe_stream_inf)
 
 
 class StreamInfo:
+    # the attributes of EXT-X-STREAM-INF this class has a field for
+    ATTRIBUTES = (
+        "bandwidth",
+        "closed_captions",
+        "average_bandwidth",
+        "program_id",
+        "resolution",
+        "codecs",
+        "supplemental_codecs",
+        "audio",
+        "video",
+        "subtitles",
+        "frame_rate",
+        "video_range",
+        "hdcp_level",
+        "pathway_id",
+        "characteristics",
+        "stable_variant_id",
+        "req_video_layout",
+        "score",
+        "allowed_cpc",
+    )
+
     bandwidth = None
     closed_captions = None
     average_bandwidth = None
@@ -1321,6 +1347,8 @@ class StreamInfo:
         self.req_video_layout = kwargs.get("req_video_layout")
         self.score = kwargs.get("score")
         self.allowed_cpc = kwargs.get("allowed_cpc")
+        # attributes without a field, as they are written in the playlist
+        self.extras = kwargs.get("extras") or {}
 
     def __str__(self):
         stream_inf = []
@@ -1360,6 +1388,7 @@ class StreamInfo:
             stream_inf.append("SCORE=" + number_to_string(self.score))
         if self.allowed_cpc is not None:
             stream_inf.append("ALLOWED-CPC=" + quoted(self.allowed_cpc))
+        stream_inf.extend(_extras_attributes(self.extras))
         return ",".join(stream_inf)
 
 
@@ -1817,6 +1846,7 @@ class ImagePlaylist(BasePathMixin):
             frame_rate=None,
             pathway_id=image_stream_info.get("pathway_id"),
             stable_variant_id=image_stream_info.get("stable_variant_id"),
+            extras=_unknown_stream_attributes(image_stream_info),
         )
 
     def __str__(self):
@@ -1848,6 +1878,7 @@ class ImagePlaylist(BasePathMixin):
             image_stream_inf.append(
                 "STABLE-VARIANT-ID=" + quoted(self.image_stream_info.stable_variant_id)
             )
+        image_stream_inf.extend(_extras_attributes(self.image_stream_info.extras))
 
         return "#EXT-X-IMAGE-STREAM-INF:" + ",".join(image_stream_inf)
 
@@ -1962,6 +1993,14 @@ def _extras_attributes(extras, quoted_names=()):
         + (quoted(value) if name in quoted_names else str(value))
         for name, value in extras.items()
     ]
+
+
+def _unknown_stream_attributes(attributes):
+    return {
+        name: value
+        for name, value in attributes.items()
+        if name not in StreamInfo.ATTRIBUTES
+    }
 
 
 def _format_date(value):

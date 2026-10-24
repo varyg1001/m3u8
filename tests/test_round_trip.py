@@ -85,6 +85,19 @@ ROUND_TRIPS = {
         HEADER + '#EXT-X-CONTENT-STEERING:SERVER-URI="s",FOO=1\n' + SEGMENT,
         ["FOO=1"],
     ),
+    "stream info unknown attributes": (
+        '#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,FOO=bar,X-VENDOR="a,b"\nv.m3u8\n',
+        ["FOO=bar", 'X-VENDOR="a,b"'],
+    ),
+    "i-frame stream info unknown attribute": (
+        VARIANT + '#EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1,URI="i.m3u8",FOO=bar\n',
+        ["FOO=bar"],
+    ),
+    "image stream info unknown attribute": (
+        VARIANT
+        + '#EXT-X-IMAGE-STREAM-INF:BANDWIDTH=1,RESOLUTION=320x180,URI="i.m3u8",FOO="baz"\n',
+        ['FOO="baz"'],
+    ),
     "session data unknown attribute": (
         VARIANT + '#EXT-X-SESSION-DATA:DATA-ID="x",VALUE="v",FOO=1\n',
         ["FOO=1"],
