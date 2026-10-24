@@ -909,4 +909,4 @@ def test_media_with_stable_rendition_id():
 
 def test_req_video_layout():
     data = m3u8.parse(playlists.VARIANT_PLAYLIST_WITH_REQ_VIDEO_LAYOUT)
-    assert data["playlists"][0]["stream_info"]["req_video_layout"] == '"CH-STEREO"'
+    assert data["playlists"][0]["stream_info"]["req_video_layout"] == "CH-STEREO"

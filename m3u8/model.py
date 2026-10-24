@@ -1160,7 +1160,9 @@ class StreamInfo:
         if self.codecs is not None:
             stream_inf.append("CODECS=" + quoted(self.codecs))
         if self.supplemental_codecs is not None:
-            stream_inf.append("SUPPLEMENTAL-CODECS=" + quoted(self.codecs))
+            stream_inf.append(
+                "SUPPLEMENTAL-CODECS=" + quoted(self.supplemental_codecs)
+            )
         if self.video_range is not None:
             stream_inf.append("VIDEO-RANGE=%s" % self.video_range)
         if self.hdcp_level is not None:
@@ -1172,7 +1174,7 @@ class StreamInfo:
         if self.stable_variant_id is not None:
             stream_inf.append("STABLE-VARIANT-ID=" + quoted(self.stable_variant_id))
         if self.req_video_layout is not None:
-            stream_inf.append("REQ-VIDEO_LAYOUT=" + quoted(self.req_video_layout))
+            stream_inf.append("REQ-VIDEO-LAYOUT=" + quoted(self.req_video_layout))
         return ",".join(stream_inf)
 
 

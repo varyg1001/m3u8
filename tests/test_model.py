@@ -1719,6 +1719,26 @@ def test_bitrate_settable_as_int():
     assert "#EXT-X-BITRATE:9876" in obj.dumps().strip()
 
 
+def test_stream_inf_quoted_attributes_round_trip():
+    playlist = textwrap.dedent(
+        """\
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="hvc1.2",SUPPLEMENTAL-CODECS="dvh1.05",CHARACTERISTICS="public.easy",REQ-VIDEO-LAYOUT="CH-STEREO"
+        video.m3u8
+        """
+    )
+    obj = m3u8.loads(playlist)
+    stream_info = obj.playlists[0].stream_info
+
+    assert stream_info.supplemental_codecs == "dvh1.05"
+    assert stream_info.characteristics == "public.easy"
+    assert stream_info.req_video_layout == "CH-STEREO"
+    assert 'SUPPLEMENTAL-CODECS="dvh1.05"' in obj.dumps()
+    assert 'CHARACTERISTICS="public.easy"' in obj.dumps()
+    assert 'REQ-VIDEO-LAYOUT="CH-STEREO"' in obj.dumps()
+    assert '""' not in obj.dumps()
+
+
 # custom asserts
 
 

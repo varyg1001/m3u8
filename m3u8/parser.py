@@ -348,11 +348,15 @@ def _parse_stream_inf(line, data, state, **kwargs):
     attribute_parser = remove_quotes_parser(
         "codecs",
         "audio",
+        "supplemental_codecs",
+        "audio",
         "video",
         "video_range",
         "subtitles",
         "pathway_id",
         "stable_variant_id",
+        "characteristics",
+        "req_video_layout",
     )
     attribute_parser["program_id"] = int
     attribute_parser["bandwidth"] = lambda x: int(float(x))
