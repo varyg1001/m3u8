@@ -111,7 +111,7 @@ def test_queryparam_comes_from_the_playlist_uri_and_is_percent_decoded():
 
 
 def test_unresolved_reference_is_left_alone_unless_strict():
-    content = "#EXTM3U\n#EXTINF:5,\n{$missing}/a.ts\n"
+    content = "#EXTM3U\n#EXT-X-VERSION:8\n#EXTINF:5,\n{$missing}/a.ts\n"
 
     assert m3u8.loads(content).segments[0].uri == "{$missing}/a.ts"
     with pytest.raises(ParseError):
@@ -129,7 +129,7 @@ def test_unresolved_reference_is_left_alone_unless_strict():
     ],
 )
 def test_invalid_define_raises_in_strict_mode(define):
-    content = f"#EXTM3U\n{define}\n#EXTINF:5,\na.ts\n"
+    content = f"#EXTM3U\n#EXT-X-VERSION:11\n{define}\n#EXTINF:5,\na.ts\n"
 
     with pytest.raises(ParseError):
         m3u8.M3U8(content, strict=True)
