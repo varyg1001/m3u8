@@ -60,6 +60,10 @@ exclude = [
     "dist",
     "venv",
 ]
+# ruff also formats the code blocks of Markdown files since 0.17, the README
+# examples keep their own style
+extend-exclude = ["*.md"]
+force-exclude = true
 indent-width = 4
 target-version = "py39"
 
