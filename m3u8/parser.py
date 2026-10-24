@@ -38,13 +38,18 @@ def format_date_time(value, **kwargs):
     return value.isoformat(**kwargs)
 
 
-class ParseError(Exception):
+class ParseError(ValueError):
     def __init__(self, lineno, line):
         self.lineno = lineno
         self.line = line
 
     def __str__(self):
         return "Syntax error in manifest on line %d: %s" % (self.lineno, self.line)
+
+
+def _is_tag(line, tag):
+    """Whether the line is the tag, not another tag that starts with its name."""
+    return line == tag or line.startswith(tag + ":")
 
 
 def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None):
@@ -94,6 +99,9 @@ def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None
 
     lines = string_to_lines(content)
     if strict:
+        if lines and lines[0].strip() != protocol.ext_m3u:
+            raise ParseError(1, lines[0])
+
         found_errors = version_matching.validate(lines)
 
         if len(found_errors) > 0:
@@ -101,7 +109,7 @@ def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None
 
     for lineno, line in enumerate(lines, 1):
         line = line.strip()
-        if "{$" in line and not line.startswith(protocol.ext_x_define):
+        if "{$" in line and not _is_tag(line, protocol.ext_x_define):
             line = _substitute_variables(line, lineno, state["variables"], strict)
         parse_kwargs = {
             "line": line,
@@ -120,148 +128,157 @@ def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None
             if go_to_next_line:
                 continue
 
-        if line.startswith(protocol.ext_x_byterange):
-            _parse_byterange(**parse_kwargs)
-            continue
+        try:
+            if _is_tag(line, protocol.ext_x_byterange):
+                _parse_byterange(**parse_kwargs)
+                continue
 
-        elif line.startswith(protocol.ext_x_bitrate):
-            _parse_bitrate(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_bitrate):
+                _parse_bitrate(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_targetduration):
-            _parse_targetduration(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_targetduration):
+                _parse_targetduration(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_media_sequence):
-            _parse_media_sequence(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_media_sequence):
+                _parse_media_sequence(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_discontinuity_sequence):
-            _parse_discontinuity_sequence(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_discontinuity_sequence):
+                _parse_discontinuity_sequence(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_program_date_time):
-            _parse_program_date_time(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_program_date_time):
+                _parse_program_date_time(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_discontinuity):
-            _parse_discontinuity(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_discontinuity):
+                _parse_discontinuity(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_cue_out_cont):
-            _parse_cueout_cont(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_cue_out_cont):
+                _parse_cueout_cont(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_cue_out):
-            _parse_cueout(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_cue_out):
+                _parse_cueout(**parse_kwargs)
 
-        elif line.startswith(f"{protocol.ext_oatcls_scte35}:"):
-            _parse_oatcls_scte35(**parse_kwargs)
+            elif line.startswith(f"{protocol.ext_oatcls_scte35}:"):
+                _parse_oatcls_scte35(**parse_kwargs)
 
-        elif line.startswith(f"{protocol.ext_x_asset}:"):
-            _parse_asset(**parse_kwargs)
+            elif line.startswith(f"{protocol.ext_x_asset}:"):
+                _parse_asset(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_cue_in):
-            _parse_cue_in(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_cue_in):
+                _parse_cue_in(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_cue_span):
-            _parse_cue_span(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_cue_span):
+                _parse_cue_span(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_version):
-            _parse_version(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_version):
+                _parse_version(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_allow_cache):
-            _parse_allow_cache(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_allow_cache):
+                _parse_allow_cache(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_key):
-            _parse_key(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_key):
+                _parse_key(**parse_kwargs)
 
-        elif line.startswith(protocol.extinf):
-            _parse_extinf(**parse_kwargs)
+            elif _is_tag(line, protocol.extinf):
+                _parse_extinf(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_stream_inf):
-            _parse_stream_inf(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_stream_inf):
+                _parse_stream_inf(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_i_frame_stream_inf):
-            _parse_i_frame_stream_inf(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_i_frame_stream_inf):
+                _parse_i_frame_stream_inf(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_media):
-            _parse_media(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_media):
+                _parse_media(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_playlist_type):
-            _parse_playlist_type(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_playlist_type):
+                _parse_playlist_type(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_i_frames_only):
-            _parse_i_frames_only(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_i_frames_only):
+                _parse_i_frames_only(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_is_independent_segments):
-            _parse_is_independent_segments(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_is_independent_segments):
+                _parse_is_independent_segments(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_endlist):
-            _parse_endlist(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_endlist):
+                _parse_endlist(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_map):
-            _parse_x_map(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_map):
+                _parse_x_map(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_start):
-            _parse_start(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_start):
+                _parse_start(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_server_control):
-            _parse_server_control(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_server_control):
+                _parse_server_control(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_part_inf):
-            _parse_part_inf(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_part_inf):
+                _parse_part_inf(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_rendition_report):
-            _parse_rendition_report(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_rendition_report):
+                _parse_rendition_report(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_part):
-            _parse_part(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_part):
+                _parse_part(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_skip):
-            _parse_skip(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_skip):
+                _parse_skip(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_session_data):
-            _parse_session_data(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_session_data):
+                _parse_session_data(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_define):
-            _parse_define(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_define):
+                _parse_define(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_session_key):
-            _parse_session_key(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_session_key):
+                _parse_session_key(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_preload_hint):
-            _parse_preload_hint(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_preload_hint):
+                _parse_preload_hint(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_daterange):
-            _parse_daterange(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_daterange):
+                _parse_daterange(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_gap):
-            _parse_gap(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_gap):
+                _parse_gap(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_content_steering):
-            _parse_content_steering(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_content_steering):
+                _parse_content_steering(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_image_stream_inf):
-            _parse_image_stream_inf(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_image_stream_inf):
+                _parse_image_stream_inf(**parse_kwargs)
 
-        elif line.startswith(protocol.ext_x_images_only):
-            _parse_is_images_only(**parse_kwargs)
-        elif line.startswith(protocol.ext_x_tiles):
-            _parse_tiles(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_images_only):
+                _parse_is_images_only(**parse_kwargs)
+            elif _is_tag(line, protocol.ext_x_tiles):
+                _parse_tiles(**parse_kwargs)
 
-        # #EXTM3U should be present.
-        elif line.startswith(protocol.ext_m3u) or line.strip() == "":
-            pass
+            # #EXTM3U should be present.
+            elif _is_tag(line, protocol.ext_m3u) or line.strip() == "":
+                pass
 
-        # Lines that don't start with # are either segments or playlists.
-        elif (not line.startswith("#")) and (state["expect_segment"]):
-            _parse_ts_chunk(**parse_kwargs)
+            # Lines that don't start with # are either segments or playlists.
+            elif (not line.startswith("#")) and (state["expect_segment"]):
+                _parse_ts_chunk(**parse_kwargs)
 
-        elif (not line.startswith("#")) and (state["expect_playlist"]):
-            _parse_variant_playlist(**parse_kwargs)
+            elif (not line.startswith("#")) and (state["expect_playlist"]):
+                _parse_variant_playlist(**parse_kwargs)
 
-        # Lines that haven't been recognized by any of the parsers above are illegal
-        # in strict mode.
-        elif strict:
-            raise ParseError(lineno, line)
+            # Lines that haven't been recognized by any of the parsers above are illegal
+            # in strict mode.
+            elif strict and not (line.startswith("#") and not line.startswith("#EXT")):
+                raise ParseError(lineno, line)
+        except ParseError:
+            raise
+        except (ValueError, KeyError, IndexError) as error:
+            # a tag that is missing a part or has a value of the wrong type
+            raise ParseError(lineno, line) from error
 
     # Handle remaining partial segments.
     if "segment" in state:
         data["segments"].append(state.pop("segment"))
+
+    if strict and data["segments"] and data.get("targetduration") is None:
+        raise ParseError(len(lines), protocol.ext_x_targetduration)
 
     return data
 
@@ -336,10 +353,10 @@ def _parse_key_attributes(params):
 
 
 def _parse_key(line, data, state, **kwargs):
-    params = ATTRIBUTELISTPATTERN.split(line.replace(protocol.ext_x_key + ":", ""))[
-        1::2
-    ]
+    params = ATTRIBUTELISTPATTERN.split(line[len(protocol.ext_x_key) + 1 :])[1::2]
     key = _parse_key_attributes(params)
+    if not key:
+        raise ValueError("EXT-X-KEY without attributes")
 
     state["current_key"] = key
     # A key replaces an earlier one of the same KEYFORMAT, keys of other
@@ -355,7 +372,7 @@ def _parse_key(line, data, state, **kwargs):
 
 
 def _parse_extinf(line, state, lineno, strict, **kwargs):
-    chunks = line.replace(protocol.extinf + ":", "").split(",", 1)
+    chunks = line[len(protocol.extinf) + 1 :].split(",", 1)
     if len(chunks) == 2:
         duration, title = chunks
     elif len(chunks) == 1:
@@ -373,6 +390,14 @@ def _parse_extinf(line, state, lineno, strict, **kwargs):
 
 def _parse_ts_chunk(line, data, state, **kwargs):
     segment = state.pop("segment")
+    target_duration = data.get("targetduration")
+    if (
+        kwargs.get("strict")
+        and target_duration is not None
+        and segment.get("duration") is not None
+        and round(segment["duration"]) > target_duration
+    ):
+        raise ParseError(kwargs["lineno"], line)
     if state.get("program_date_time"):
         segment["program_date_time"] = state.pop("program_date_time")
     if state.get("current_program_date_time"):
@@ -410,11 +435,11 @@ def _parse_ts_chunk(line, data, state, **kwargs):
 
 
 def _parse_attribute_list(prefix, line, attribute_parser, default_parser=None):
-    params = ATTRIBUTELISTPATTERN.split(line.replace(prefix + ":", ""))[1::2]
-
     attributes = {}
     if not line.startswith(prefix + ":"):
         return attributes
+
+    params = ATTRIBUTELISTPATTERN.split(line[len(prefix) + 1 :])[1::2]
 
     for param in params:
         param_parts = param.split("=", 1)
@@ -558,7 +583,7 @@ def _parse_bitrate(state, **kwargs):
 def _parse_byterange(line, state, **kwargs):
     if "segment" not in state:
         state["segment"] = {}
-    state["segment"]["byterange"] = line.replace(protocol.ext_x_byterange + ":", "")
+    state["segment"]["byterange"] = line[len(protocol.ext_x_byterange) + 1 :]
     state["expect_segment"] = True
 
 
@@ -571,8 +596,18 @@ def _parse_targetduration(**parse_kwargs):
     return _parse_simple_parameter(cast_to=_lenient_int, **parse_kwargs)
 
 
-def _parse_media_sequence(**parse_kwargs):
-    return _parse_simple_parameter(cast_to=int, **parse_kwargs)
+def _parse_media_sequence(state, strict, lineno, line, **parse_kwargs):
+    if strict and state.get("media_sequence_seen"):
+        raise ParseError(lineno, line)
+    state["media_sequence_seen"] = True
+    return _parse_simple_parameter(
+        cast_to=int,
+        state=state,
+        strict=strict,
+        lineno=lineno,
+        line=line,
+        **parse_kwargs,
+    )
 
 
 def _parse_discontinuity_sequence(**parse_kwargs):
@@ -800,9 +835,9 @@ def _parse_session_data(line, data, **kwargs):
 
 
 def _parse_session_key(line, data, **kwargs):
-    params = ATTRIBUTELISTPATTERN.split(
-        line.replace(protocol.ext_x_session_key + ":", "")
-    )[1::2]
+    params = ATTRIBUTELISTPATTERN.split(line[len(protocol.ext_x_session_key) + 1 :])[
+        1::2
+    ]
     data["session_keys"].append(_parse_key_attributes(params))
 
 
@@ -859,7 +894,7 @@ def _parse_asset(line, state, **kwargs):
 
 
 def string_to_lines(string):
-    return string.strip().splitlines()
+    return re.split(r"\r\n|\r|\n", string.lstrip("\ufeff").strip())
 
 
 def remove_quotes_parser(*attrs):
