@@ -95,3 +95,11 @@ def test_absolute_files_of_absolute_uris_need_no_base_uri():
     )
 
     assert obj.absolute_files == obj.files
+
+
+def test_files_can_still_be_assigned():
+    obj = m3u8.loads(PLAYLIST)
+
+    obj.files = ["only.ts"]
+
+    assert obj.files == ["only.ts"]

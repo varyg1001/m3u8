@@ -193,6 +193,7 @@ class M3U8:
         else:
             self.data = {}
         self.uri = uri
+        self._files = None
         self._base_uri = base_uri
         if self._base_uri and not self._base_uri.endswith("/"):
             self._base_uri += "/"
@@ -328,6 +329,8 @@ class M3U8:
 
     @property
     def files(self):
+        if self._files is not None:
+            return self._files
         files = []
         for key in self.keys:
             # Avoid None key, it could be the first one, don't repeat them
@@ -335,6 +338,11 @@ class M3U8:
                 files.append(key.uri)
         files.extend(uri for uri in self.segments.uri if uri is not None)
         return files
+
+    @files.setter
+    def files(self, files):
+        # it used to be an attribute, a list that is set is used instead
+        self._files = files
 
     @property
     def absolute_files(self):
