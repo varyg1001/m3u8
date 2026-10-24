@@ -1814,6 +1814,90 @@ def test_parts_do_not_advance_segment_program_date_time_twice():
     ]
 
 
+MULTI_KEY_PLAYLIST = textwrap.dedent(
+    """\
+    #EXTM3U
+    #EXT-X-TARGETDURATION:5
+    #EXTINF:5,
+    clear.ts
+    #EXT-X-KEY:METHOD=SAMPLE-AES,URI="skd://fairplay",KEYFORMAT="com.apple.streamingkeydelivery",KEYFORMATVERSIONS="1"
+    #EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:;base64,widevine",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+    #EXTINF:5,
+    a.ts
+    #EXTINF:5,
+    b.ts
+    #EXT-X-KEY:METHOD=SAMPLE-AES,URI="data:;base64,widevine2",KEYFORMAT="urn:uuid:edef8ba9-79d6-4ace-a3c8-27dcd51d21ed"
+    #EXTINF:5,
+    c.ts
+    #EXT-X-KEY:METHOD=NONE
+    #EXTINF:5,
+    d.ts
+    """
+)
+
+
+def test_segment_has_all_keys_with_different_keyformats():
+    obj = m3u8.loads(MULTI_KEY_PLAYLIST)
+
+    assert obj.segments[0].keys == []
+    assert obj.segments[0].key is None
+    assert [key.uri for key in obj.segments[1].keys] == [
+        "skd://fairplay",
+        "data:;base64,widevine",
+    ]
+    assert obj.segments[1].key.uri == "data:;base64,widevine"
+
+
+def test_keys_stay_in_effect_for_following_segments():
+    obj = m3u8.loads(MULTI_KEY_PLAYLIST)
+
+    assert obj.segments[2].keys == obj.segments[1].keys
+
+
+def test_key_replaces_earlier_key_of_same_keyformat_only():
+    obj = m3u8.loads(MULTI_KEY_PLAYLIST)
+
+    assert [key.uri for key in obj.segments[3].keys] == [
+        "skd://fairplay",
+        "data:;base64,widevine2",
+    ]
+    # METHOD=NONE replaces the identity key and keeps the others
+    assert [key.method for key in obj.segments[4].keys] == [
+        "SAMPLE-AES",
+        "SAMPLE-AES",
+        "NONE",
+    ]
+
+
+def test_multiple_keys_round_trip():
+    obj = m3u8.loads(MULTI_KEY_PLAYLIST)
+    again = m3u8.loads(obj.dumps())
+
+    assert [segment.keys for segment in again.segments] == [
+        segment.keys for segment in obj.segments
+    ]
+    assert obj.dumps().strip() == MULTI_KEY_PLAYLIST.strip()
+
+
+def test_by_key_finds_segments_using_any_of_their_keys():
+    obj = m3u8.loads(MULTI_KEY_PLAYLIST)
+    fairplay = obj.segments[1].keys[0]
+
+    assert obj.segments.by_key(fairplay) == obj.segments[1:]
+    assert obj.segments.by_key(None) == obj.segments[:1]
+
+
+def test_segment_key_setter_replaces_keys():
+    key = m3u8.model.Key("AES-128", "http://h/", uri="k")
+    segment = Segment(uri="a.ts")
+
+    segment.key = key
+    assert segment.keys == [key]
+
+    segment.key = None
+    assert segment.keys == []
+
+
 def test_key_is_hashable_and_compares_only_with_keys():
     key = m3u8.model.Key("AES-128", "http://h/", uri="k")
     same = m3u8.model.Key("AES-128", "http://h/", uri="k")

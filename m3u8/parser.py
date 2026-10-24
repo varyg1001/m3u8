@@ -71,6 +71,7 @@ def parse(content, strict=False, custom_tags_parser=None):
         "expect_segment": False,
         "expect_playlist": False,
         "current_key": None,
+        "current_keys": [],
         "current_segment_map": None,
     }
 
@@ -257,6 +258,14 @@ def _parse_key(line, data, state, **kwargs):
         key[normalize_attribute(name)] = remove_quotes(value)
 
     state["current_key"] = key
+    # A key replaces an earlier one of the same KEYFORMAT, keys of other
+    # formats (e.g. multiple DRM systems) stay in effect alongside it.
+    keyformat = key.get("keyformat") or "identity"
+    state["current_keys"] = [
+        current
+        for current in state["current_keys"]
+        if (current.get("keyformat") or "identity") != keyformat
+    ] + [key]
     if key not in data["keys"]:
         data["keys"].append(key)
 
@@ -307,6 +316,7 @@ def _parse_ts_chunk(line, data, state, **kwargs):
         # For unencrypted segments, the initial key would be None
         if None not in data["keys"]:
             data["keys"].append(None)
+    segment["keys"] = list(state["current_keys"])
     if state.get("current_segment_map"):
         segment["init_section"] = state["current_segment_map"]
     segment["dateranges"] = state.pop("dateranges", None)

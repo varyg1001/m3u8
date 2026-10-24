@@ -189,6 +189,11 @@ class M3U8:
                 Segment(
                     base_uri=self.base_uri,
                     keyobject=find_key(segment.get("key", {}), self.keys),
+                    keyobjects=(
+                        [find_key(key, self.keys) for key in segment["keys"]]
+                        if "keys" in segment
+                        else None
+                    ),
                     **segment,
                 )
                 for segment in self.data.get("segments", [])
@@ -510,8 +515,13 @@ class Segment(BasePathMixin):
     `byterange`
       byterange attribute from EXT-X-BYTERANGE parameter
 
+    `keys`
+      List of the keys that apply to the segment (EXT-X-KEY). A segment can have
+      several, for example one per DRM system (KEYFORMAT). Empty when the
+      segment is not encrypted.
+
     `key`
-      Key used to encrypt the segment (EXT-X-KEY)
+      The most recently specified key of `keys`, `None` when there is none
 
     `parts`
       partial segments that make up this segment
@@ -542,12 +552,14 @@ class Segment(BasePathMixin):
         cue_in=False,
         discontinuity=False,
         key=None,
+        keys=None,
         scte35=None,
         oatcls_scte35=None,
         scte35_duration=None,
         scte35_elapsedtime=None,
         asset_metadata=None,
         keyobject=None,
+        keyobjects=None,
         parts=None,
         init_section=None,
         dateranges=None,
@@ -574,7 +586,10 @@ class Segment(BasePathMixin):
         self.scte35_duration = scte35_duration
         self.scte35_elapsedtime = scte35_elapsedtime
         self.asset_metadata = asset_metadata
-        self.key = keyobject
+        if keyobjects is not None:
+            self.keys = list(keyobjects)
+        else:
+            self.keys = [keyobject] if keyobject else []
         self.parts = PartialSegmentList(
             [PartialSegment(base_uri=self._base_uri, **partial) for partial in parts]
             if parts
@@ -590,21 +605,31 @@ class Segment(BasePathMixin):
         self.gap_tag = gap_tag
         self.custom_parser_values = custom_parser_values or {}
 
+    @property
+    def key(self):
+        """The most recently specified key, `None` when there is none."""
+        return self.keys[-1] if self.keys else None
+
+    @key.setter
+    def key(self, key):
+        self.keys = [key] if key else []
+
     def add_part(self, part):
         self.parts.append(part)
 
     def dumps(self, last_segment, timespec="milliseconds", infspec="auto"):
         output = []
 
-        if last_segment and self.key != last_segment.key:
+        last_keys = last_segment.keys if last_segment else []
+        if self.keys:
+            # keys already in effect from the previous segment are not repeated
+            for key in self.keys:
+                if key not in last_keys:
+                    output.append(str(key))
+                    output.append("\n")
+        elif last_keys:
             # an unencrypted segment after an encrypted one needs METHOD=NONE
-            output.append(str(self.key) if self.key else ext_x_key + ":METHOD=NONE")
-            output.append("\n")
-        else:
-            # The key must be checked anyway now for the first segment
-            if self.key and last_segment is None:
-                output.append(str(self.key))
-                output.append("\n")
+            output.append(ext_x_key + ":METHOD=NONE\n")
 
         if self.init_section:
             if (not last_segment) or (self.init_section != last_segment.init_section):
@@ -728,7 +753,9 @@ class SegmentList(list, GroupedBasePathMixin):
         return [seg.uri for seg in self]
 
     def by_key(self, key):
-        return [segment for segment in self if segment.key == key]
+        if key is None:
+            return [segment for segment in self if not segment.keys]
+        return [segment for segment in self if key in segment.keys]
 
 
 class PartialSegment(BasePathMixin):
