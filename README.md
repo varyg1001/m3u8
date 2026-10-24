@@ -39,6 +39,45 @@ print(playlist.dumps())
 playlist.dump('playlist.m3u8')
 ```
 
+## Using another HTTP client
+
+`m3u8.load` downloads playlists with `urllib`, so the library needs no
+dependencies. To use something else, for example for HTTP/2, retries or a
+session with cookies, pass any object with a `download` method that returns the
+content and the base URI of the playlist:
+
+``` python
+from urllib.parse import urljoin
+
+import m3u8
+import niquests  # or requests
+
+
+class Client:
+    def __init__(self):
+        self.session = niquests.Session()
+
+    def download(self, uri, timeout=None, headers=None, verify_ssl=True):
+        response = self.session.get(
+            uri, timeout=timeout, headers=headers, verify=verify_ssl
+        )
+        response.raise_for_status()
+        return response.text, urljoin(response.url, ".")
+
+
+playlist = m3u8.load("http://videoserver.com/playlist.m3u8", http_client=Client())
+```
+
+The default client, `m3u8.httpclient.DefaultHTTPClient`, takes `proxies` and a
+`cookie_jar` that keeps the cookies between downloads.
+
+## Strict mode
+
+`m3u8.load`, `m3u8.loads` and `m3u8.M3U8` take `strict=True` to raise a
+`ParseError` (a `ValueError`) for what the specification forbids, for example a
+missing `#EXTM3U`, an unknown tag or a tag that needs a higher
+`#EXT-X-VERSION` than the one the playlist declares.
+
 # Supported tags
 
 -   [\#EXT-X-TARGETDURATION](https://tools.ietf.org/html/rfc8216#section-4.3.3.1)
