@@ -5,6 +5,7 @@
 import itertools
 import re
 from datetime import datetime, timedelta
+from urllib.parse import unquote, urlsplit
 
 try:
     from backports.datetime_fromisoformat import MonkeyPatch
@@ -21,6 +22,12 @@ http://tools.ietf.org/html/draft-pantos-http-live-streaming-08#section-3.2
 http://stackoverflow.com/questions/2785755/how-to-split-but-ignore-separators-in-quoted-strings-in-python
 """
 ATTRIBUTELISTPATTERN = re.compile(r"""((?:[^,"']|"[^"]*"|'[^']*')+)""")
+
+# https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis#section-4.4.2.3
+VARIABLE_NAME_PATTERN = re.compile(r"[A-Za-z0-9_-]+")
+VARIABLE_REFERENCE_PATTERN = re.compile(r"\{\$([A-Za-z0-9_-]+)\}")
+# Attribute values that are subject to variable substitution besides URI lines
+QUOTED_OR_HEXADECIMAL_PATTERN = re.compile(r'"[^"]*"|(?<==)0[xX][^,"]*')
 
 
 def cast_date_time(value):
@@ -40,9 +47,13 @@ class ParseError(Exception):
         return "Syntax error in manifest on line %d: %s" % (self.lineno, self.line)
 
 
-def parse(content, strict=False, custom_tags_parser=None):
+def parse(content, strict=False, custom_tags_parser=None, uri=None, imports=None):
     """
     Given a M3U8 playlist content returns a dictionary with all data found
+
+    `uri` is the URI of the playlist, the source of EXT-X-DEFINE QUERYPARAM values.
+    `imports` maps the variable names of the Multivariant Playlist to their values,
+    the source of EXT-X-DEFINE IMPORT values.
     """
     data = {
         "media_sequence": 0,
@@ -65,6 +76,8 @@ def parse(content, strict=False, custom_tags_parser=None):
         "session_data": [],
         "session_keys": [],
         "segment_map": [],
+        "defines": [],
+        "variables": {},
     }
 
     state = {
@@ -73,6 +86,9 @@ def parse(content, strict=False, custom_tags_parser=None):
         "current_key": None,
         "current_keys": [],
         "current_segment_map": None,
+        "variables": data["variables"],
+        "imports": imports or {},
+        "query": _parse_query(uri),
     }
 
     lines = string_to_lines(content)
@@ -84,6 +100,8 @@ def parse(content, strict=False, custom_tags_parser=None):
 
     for lineno, line in enumerate(lines, 1):
         line = line.strip()
+        if "{$" in line and not line.startswith(protocol.ext_x_define):
+            line = _substitute_variables(line, lineno, state["variables"], strict)
         parse_kwargs = {
             "line": line,
             "lineno": lineno,
@@ -198,6 +216,9 @@ def parse(content, strict=False, custom_tags_parser=None):
         elif line.startswith(protocol.ext_x_session_data):
             _parse_session_data(**parse_kwargs)
 
+        elif line.startswith(protocol.ext_x_define):
+            _parse_define(**parse_kwargs)
+
         elif line.startswith(protocol.ext_x_session_key):
             _parse_session_key(**parse_kwargs)
 
@@ -246,6 +267,61 @@ def parse(content, strict=False, custom_tags_parser=None):
         data["segments"].append(state.pop("segment"))
 
     return data
+
+
+def _parse_query(uri):
+    query = {}
+    for pair in urlsplit(uri).query.split("&") if uri else []:
+        name, _, value = pair.partition("=")
+        query.setdefault(unquote(name), unquote(value))
+    return query
+
+
+def _substitute_variables(line, lineno, variables, strict):
+    def replace(match):
+        name = match.group(1)
+        if name in variables:
+            return variables[name]
+        if strict:
+            raise ParseError(lineno, line)
+        return match.group(0)
+
+    def replace_in(text):
+        return VARIABLE_REFERENCE_PATTERN.sub(replace, text)
+
+    if not line.startswith("#"):
+        return replace_in(line)
+    return QUOTED_OR_HEXADECIMAL_PATTERN.sub(lambda m: replace_in(m.group(0)), line)
+
+
+def _parse_define(line, lineno, data, state, strict, **kwargs):
+    attributes = _parse_attribute_list(
+        protocol.ext_x_define,
+        line,
+        remove_quotes_parser("name", "value", "import", "queryparam"),
+    )
+    variables = state["variables"]
+
+    if "name" in attributes:
+        name, value = attributes["name"], attributes.get("value")
+        valid = VARIABLE_NAME_PATTERN.fullmatch(name) and value is not None
+    elif "import" in attributes:
+        name = attributes["import"]
+        value = state["imports"].get(name)
+        valid = value is not None
+    elif "queryparam" in attributes:
+        name = attributes["queryparam"]
+        value = state["query"].get(name)
+        valid = value is not None
+    else:
+        name = value = None
+        valid = False
+
+    if strict and (not valid or name in variables):
+        raise ParseError(lineno, line)
+    if valid:
+        variables[name] = value
+    data["defines"].append(attributes)
 
 
 def _parse_key(line, data, state, **kwargs):

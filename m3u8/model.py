@@ -10,6 +10,7 @@ from m3u8.parser import format_date_time, parse
 from m3u8.protocol import (
     ext_oatcls_scte35,
     ext_x_asset,
+    ext_x_define,
     ext_x_key,
     ext_x_map,
     ext_x_session_key,
@@ -31,6 +32,13 @@ class M3U8:
      `content`
        the m3u8 content as string
 
+     `uri`
+       the URI of the playlist, the source of the EXT-X-DEFINE QUERYPARAM variables
+
+     `imports`
+       dictionary of the variables of the Multivariant Playlist, the source of the
+       EXT-X-DEFINE IMPORT variables. Use `variables` of the Multivariant Playlist.
+
      `base_path`
        all urls (key and segments url) will be updated with this base_path,
        ex.:
@@ -45,6 +53,14 @@ class M3U8:
       ex.: http://example.com/path/to
 
     Attributes:
+
+     `defines`
+       List of `Define` objects, the EXT-X-DEFINE tags of the playlist
+
+     `variables`
+       Dictionary with the value of every variable defined, imported or taken from
+       the query of the playlist `uri`. Variable references, ex.: {$name}, in URIs
+       and in quoted attribute values are already replaced while parsing.
 
      `keys`
        Returns the list of `Key` objects used to encrypt the segments from m3u8.
@@ -162,9 +178,11 @@ class M3U8:
         base_uri=None,
         strict=False,
         custom_tags_parser=None,
+        uri=None,
+        imports=None,
     ):
         if content is not None:
-            self.data = parse(content, strict, custom_tags_parser)
+            self.data = parse(content, strict, custom_tags_parser, uri, imports)
         else:
             self.data = {}
         self._base_uri = base_uri
@@ -176,6 +194,8 @@ class M3U8:
         self.base_path = base_path
 
     def _initialize_attributes(self):
+        self.defines = [Define(**params) for params in self.data.get("defines", [])]
+        self.variables = dict(self.data.get("variables", {}))
         self.keys = [
             Key(base_uri=self.base_uri, **params) if params else None
             for params in self.data.get("keys", [])
@@ -389,6 +409,8 @@ class M3U8:
             output.append("#EXT-X-ALLOW-CACHE:" + self.allow_cache.upper())
         if self.version:
             output.append("#EXT-X-VERSION:" + str(self.version))
+        for define in self.defines:
+            output.append(str(define))
         if self.is_independent_segments:
             output.append("#EXT-X-INDEPENDENT-SEGMENTS")
         if self.target_duration:
@@ -972,6 +994,42 @@ class InitializationSection(BasePathMixin):
 
     def __hash__(self):
         return hash((self.uri, self.byterange))
+
+
+class Define:
+    """
+    A variable definition of a m3u8 playlist (EXT-X-DEFINE)
+    https://datatracker.ietf.org/doc/html/draft-pantos-hls-rfc8216bis#section-4.4.2.3
+
+    `name` and `value`
+      define a variable
+
+    `import_`
+      name of a variable to import from the Multivariant Playlist
+
+    `queryparam`
+      name of a query parameter of the playlist URI to define a variable from
+    """
+
+    tag = ext_x_define
+
+    def __init__(self, **kwargs):
+        self.name = kwargs.get("name")
+        self.value = kwargs.get("value")
+        self.import_ = kwargs.get("import")
+        self.queryparam = kwargs.get("queryparam")
+
+    def __str__(self):
+        output = []
+        if self.name is not None:
+            output.append("NAME=" + quoted(self.name))
+        if self.value is not None:
+            output.append("VALUE=" + quoted(self.value))
+        if self.import_ is not None:
+            output.append("IMPORT=" + quoted(self.import_))
+        if self.queryparam is not None:
+            output.append("QUERYPARAM=" + quoted(self.queryparam))
+        return self.tag + ":" + ",".join(output)
 
 
 class SessionKey(Key):

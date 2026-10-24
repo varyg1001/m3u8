@@ -11,6 +11,7 @@ from m3u8.model import (
     ContentSteering,
     DateRange,
     DateRangeList,
+    Define,
     IFramePlaylist,
     ImagePlaylist,
     Key,
@@ -55,6 +56,7 @@ __all__ = (
     "DateRange",
     "DateRangeList",
     "ContentSteering",
+    "Define",
     "ImagePlaylist",
     "Tiles",
     "loads",
@@ -64,18 +66,25 @@ __all__ = (
 )
 
 
-def loads(content, uri=None, custom_tags_parser=None):
+def loads(content, uri=None, custom_tags_parser=None, imports=None):
     """
     Given a string with a m3u8 content, returns a M3U8 object.
     Optionally parses a uri to set a correct base_uri on the M3U8 object.
+    `imports` are the `variables` of the Multivariant Playlist, see EXT-X-DEFINE.
     Raises ValueError if invalid content
     """
 
     if uri is None:
-        return M3U8(content, custom_tags_parser=custom_tags_parser)
+        return M3U8(content, custom_tags_parser=custom_tags_parser, imports=imports)
     else:
         base_uri = urljoin(uri, ".")
-        return M3U8(content, base_uri=base_uri, custom_tags_parser=custom_tags_parser)
+        return M3U8(
+            content,
+            base_uri=base_uri,
+            custom_tags_parser=custom_tags_parser,
+            uri=uri,
+            imports=imports,
+        )
 
 
 def load(
@@ -85,9 +94,11 @@ def load(
     custom_tags_parser=None,
     http_client=None,
     verify_ssl=True,
+    imports=None,
 ):
     """
     Retrieves the content from a given URI and returns a M3U8 object.
+    `imports` are the `variables` of the Multivariant Playlist, see EXT-X-DEFINE.
     Raises ValueError if invalid content or IOError if request fails.
     """
     if headers is None:
@@ -97,13 +108,24 @@ def load(
     base_uri_parts = urlsplit(uri)
     if base_uri_parts.scheme and base_uri_parts.netloc:
         content, base_uri = http_client.download(uri, timeout, headers, verify_ssl)
-        return M3U8(content, base_uri=base_uri, custom_tags_parser=custom_tags_parser)
+        return M3U8(
+            content,
+            base_uri=base_uri,
+            custom_tags_parser=custom_tags_parser,
+            uri=uri,
+            imports=imports,
+        )
     else:
-        return _load_from_file(uri, custom_tags_parser)
+        return _load_from_file(uri, custom_tags_parser, imports)
 
 
-def _load_from_file(uri, custom_tags_parser=None):
+def _load_from_file(uri, custom_tags_parser=None, imports=None):
     with open(uri, encoding="utf8") as fileobj:
         raw_content = fileobj.read().strip()
     base_uri = os.path.dirname(uri)
-    return M3U8(raw_content, base_uri=base_uri, custom_tags_parser=custom_tags_parser)
+    return M3U8(
+        raw_content,
+        base_uri=base_uri,
+        custom_tags_parser=custom_tags_parser,
+        imports=imports,
+    )
