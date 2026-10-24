@@ -71,6 +71,18 @@ playlist = m3u8.load("http://videoserver.com/playlist.m3u8", http_client=Client(
 The default client, `m3u8.httpclient.DefaultHTTPClient`, takes `proxies` and a
 `cookie_jar` that keeps the cookies between downloads.
 
+A client that uses niquests is included, install it with
+`pip install m3u8[niquests]`. It takes the `session` to use and `proxies`:
+
+``` python
+import m3u8
+from m3u8.httpclient import NiquestsHTTPClient
+
+playlist = m3u8.load(
+    "http://videoserver.com/playlist.m3u8", http_client=NiquestsHTTPClient()
+)
+```
+
 ## Strict mode
 
 `m3u8.load`, `m3u8.loads` and `m3u8.M3U8` take `strict=True` to raise a

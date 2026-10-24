@@ -198,3 +198,16 @@ def test_playlist_knows_the_uri_it_was_loaded_from():
     assert m3u8.load(uri, http_client=Client()).uri == uri
     assert m3u8.loads("#EXTM3U\n", uri=uri).uri == uri
     assert m3u8.loads("#EXTM3U\n").uri is None
+
+
+def test_load_with_the_niquests_client():
+    pytest.importorskip("niquests")
+    from m3u8.httpclient import NiquestsHTTPClient
+
+    client = NiquestsHTTPClient()
+    obj = m3u8.load(playlists.REDIRECT_PLAYLIST_URI, http_client=client)
+    urlparsed = urllib.parse.urlparse(playlists.SIMPLE_PLAYLIST_URI)
+
+    assert len(obj.segments) > 0
+    assert obj.base_uri == urlparsed.scheme + "://" + urlparsed.netloc + "/"
+    assert obj.uri == playlists.REDIRECT_PLAYLIST_URI

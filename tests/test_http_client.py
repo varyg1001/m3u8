@@ -1,4 +1,5 @@
 import gzip
+import sys
 import unittest
 import urllib.request
 import zlib
@@ -6,7 +7,9 @@ from http.client import HTTPResponse
 from http.cookiejar import CookieJar
 from unittest.mock import Mock, patch
 
-from m3u8.httpclient import DefaultHTTPClient
+import pytest
+
+from m3u8.httpclient import DefaultHTTPClient, NiquestsHTTPClient
 
 
 class MockHeaders:
@@ -146,3 +149,71 @@ class TestDefaultHTTPClientDetails(unittest.TestCase):
         )
 
         self.assertEqual(content, "playlist")
+
+
+class FakeResponse:
+    text = "#EXTM3U\n"
+    url = "http://example.com/dir/index.m3u8?token=1"
+
+    def __init__(self):
+        self.raise_for_status = Mock()
+
+
+class FakeSession:
+    def __init__(self):
+        self.proxies = {}
+        self.get = Mock(return_value=FakeResponse())
+
+
+class TestNiquestsHTTPClient(unittest.TestCase):
+    def setUp(self):
+        pytest.importorskip("niquests")
+
+    def test_download_returns_content_and_the_base_uri_after_redirects(self):
+        session = FakeSession()
+        client = NiquestsHTTPClient(session=session)
+
+        content, base_uri = client.download(
+            "http://example.com/redirect",
+            timeout=5,
+            headers={"Authorization": "Bearer x"},
+            verify_ssl=False,
+        )
+
+        self.assertEqual(content, "#EXTM3U\n")
+        self.assertEqual(base_uri, "http://example.com/dir/")
+        session.get.assert_called_once_with(
+            "http://example.com/redirect",
+            timeout=5,
+            headers={"Authorization": "Bearer x"},
+            verify=False,
+        )
+
+    def test_http_errors_are_raised(self):
+        session = FakeSession()
+        session.get.return_value.raise_for_status.side_effect = OSError("404")
+
+        with self.assertRaises(OSError):
+            NiquestsHTTPClient(session=session).download("http://example.com/a")
+
+    def test_proxies_are_set_on_the_session(self):
+        session = FakeSession()
+
+        NiquestsHTTPClient(session=session, proxies={"https": "http://proxy"})
+
+        self.assertEqual(session.proxies, {"https": "http://proxy"})
+
+    def test_a_session_is_created_when_it_is_not_given(self):
+        import niquests
+
+        client = NiquestsHTTPClient()
+
+        self.assertIsInstance(client.session, niquests.Session)
+
+
+def test_niquests_client_asks_to_install_niquests():
+    with (
+        patch.dict(sys.modules, {"niquests": None}),
+        pytest.raises(ImportError, match=r"m3u8\[niquests\]"),
+    ):
+        NiquestsHTTPClient()

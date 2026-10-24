@@ -50,6 +50,35 @@ class DefaultHTTPClient:
         return content, base_uri
 
 
+class NiquestsHTTPClient:
+    """
+    Downloads playlists with niquests, install it with ``pip install m3u8[niquests]``.
+
+    `session` is the `niquests.Session` to use, a new one is created when it is not
+    given. It keeps the cookies and the connections between the downloads.
+    `proxies` is a dictionary of the proxies to use, ex.: {"https": "http://proxy"}
+    """
+
+    def __init__(self, session=None, proxies=None):
+        try:
+            import niquests
+        except ImportError as error:
+            raise ImportError(
+                "NiquestsHTTPClient needs niquests, install m3u8[niquests]"
+            ) from error
+
+        self.session = session or niquests.Session()
+        if proxies:
+            self.session.proxies.update(proxies)
+
+    def download(self, uri, timeout=None, headers=None, verify_ssl=True):
+        response = self.session.get(
+            uri, timeout=timeout, headers=headers, verify=verify_ssl
+        )
+        response.raise_for_status()
+        return response.text, urljoin(response.url, ".")
+
+
 class HTTPSHandler:
     def __new__(self, verify_ssl=True):
         context = ssl.create_default_context()
