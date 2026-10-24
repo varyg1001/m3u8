@@ -1762,6 +1762,73 @@ def test_base_path_ignores_slash_in_uri_fragment():
     assert segment.base_path == "video"
 
 
+def test_key_is_hashable_and_compares_only_with_keys():
+    key = m3u8.model.Key("AES-128", "http://h/", uri="k")
+    same = m3u8.model.Key("AES-128", "http://h/", uri="k")
+
+    assert hash(key) == hash(same)
+    assert len({key, same}) == 1
+    assert key != "k"
+    assert key != None  # noqa: E711
+
+
+def test_keys_differing_only_by_keyformat_are_kept():
+    obj = m3u8.loads(
+        textwrap.dedent(
+            """\
+            #EXTM3U
+            #EXT-X-TARGETDURATION:5
+            #EXT-X-KEY:METHOD=SAMPLE-AES,URI="k",KEYFORMAT="a"
+            #EXTINF:5,
+            a.ts
+            #EXT-X-KEY:METHOD=SAMPLE-AES,URI="k",KEYFORMAT="b"
+            #EXTINF:5,
+            b.ts
+            """
+        )
+    )
+
+    assert obj.segments[0].key.keyformat == "a"
+    assert obj.segments[1].key.keyformat == "b"
+    assert 'KEYFORMAT="a"' in obj.dumps()
+    assert 'KEYFORMAT="b"' in obj.dumps()
+
+
+def test_unencrypted_segment_after_encrypted_dumps_method_none():
+    obj = m3u8.loads(
+        textwrap.dedent(
+            """\
+            #EXTM3U
+            #EXT-X-TARGETDURATION:5
+            #EXT-X-KEY:METHOD=AES-128,URI="k"
+            #EXTINF:5,
+            a.ts
+            #EXTINF:5,
+            b.ts
+            """
+        )
+    )
+    obj.segments[1].key = None
+
+    result = obj.dumps()
+
+    assert "\nNone\n" not in result
+    assert "#EXT-X-KEY:METHOD=NONE\n#EXTINF:5,\nb.ts" in result
+
+
+def test_str_of_m3u8_is_its_dump():
+    obj = m3u8.loads("#EXTM3U\n#EXT-X-TARGETDURATION:5\n#EXTINF:5,\na.ts\n")
+
+    assert str(obj) == obj.dumps()
+
+
+def test_decimal_version_and_targetduration_are_accepted():
+    obj = m3u8.loads("#EXTM3U\n#EXT-X-VERSION:3.0\n#EXT-X-TARGETDURATION:6.0\n")
+
+    assert obj.version == 3
+    assert obj.target_duration == 6
+
+
 def test_stream_inf_quoted_attributes_round_trip():
     playlist = textwrap.dedent(
         """\

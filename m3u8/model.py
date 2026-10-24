@@ -284,7 +284,7 @@ class M3U8:
             base_uri=self.base_uri, **content_steering
         )
 
-    def __unicode__(self):
+    def __str__(self):
         return self.dumps()
 
     @property
@@ -594,7 +594,8 @@ class Segment(BasePathMixin):
         output = []
 
         if last_segment and self.key != last_segment.key:
-            output.append(str(self.key))
+            # an unencrypted segment after an encrypted one needs METHOD=NONE
+            output.append(str(self.key) if self.key else ext_x_key + ":METHOD=NONE")
             output.append("\n")
         else:
             # The key must be checked anyway now for the first segment
@@ -882,8 +883,8 @@ class Key(BasePathMixin):
         return self.tag + ":" + ",".join(output)
 
     def __eq__(self, other):
-        if not other:
-            return False
+        if not isinstance(other, Key):
+            return NotImplemented
         return (
             self.method == other.method
             and self.uri == other.uri
@@ -893,8 +894,11 @@ class Key(BasePathMixin):
             and self.keyformatversions == other.keyformatversions
         )
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    def __hash__(self):
+        # base_uri is left out as it can be changed after creation
+        return hash(
+            (self.method, self.uri, self.iv, self.keyformat, self.keyformatversions)
+        )
 
 
 class InitializationSection(BasePathMixin):
@@ -928,16 +932,16 @@ class InitializationSection(BasePathMixin):
         return "{tag}:{attributes}".format(tag=self.tag, attributes=",".join(output))
 
     def __eq__(self, other):
-        if not other:
-            return False
+        if not isinstance(other, InitializationSection):
+            return NotImplemented
         return (
             self.uri == other.uri
             and self.byterange == other.byterange
             and self.base_uri == other.base_uri
         )
 
-    def __ne__(self, other):
-        return not self.__eq__(other)
+    def __hash__(self):
+        return hash((self.uri, self.byterange))
 
 
 class SessionKey(Key):
@@ -1653,6 +1657,8 @@ def find_key(keydata, keylist):
                 keydata.get("uri", None) == key.uri
                 and keydata.get("method", "NONE") == key.method
                 and keydata.get("iv", None) == key.iv
+                and keydata.get("keyformat", None) == key.keyformat
+                and keydata.get("keyformatversions", None) == key.keyformatversions
             ):
                 return key
     raise KeyError("No key found for key data")
