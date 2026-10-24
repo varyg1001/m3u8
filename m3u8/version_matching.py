@@ -1,5 +1,3 @@
-from typing import Optional
-
 from m3u8 import protocol
 from m3u8.version_matching_rules import VersionMatchingError, available_rules
 
@@ -23,7 +21,7 @@ def valid_in_all_rules(
     line_number: int,
     line: str,
     version: float,
-    file_lines: Optional[list[str]] = None,
+    file_lines: list[str] | None = None,
 ) -> list[VersionMatchingError]:
     errors = []
     for rule in available_rules:

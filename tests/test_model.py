@@ -28,7 +28,7 @@ from m3u8.model import (
 )
 from m3u8.protocol import ext_x_part, ext_x_preload_hint, ext_x_start
 
-utc = datetime.timezone.utc
+utc = datetime.UTC
 
 
 def test_base_path_playlist_with_slash_in_query_string():
@@ -1761,8 +1761,8 @@ def test_cue_out_cont_scte35_without_duration():
 
 
 def test_daterange_datetime_uses_iso8601_t_separator():
-    start = datetime.datetime(1970, 1, 1, 0, 0, 8, tzinfo=datetime.timezone.utc)
-    end = datetime.datetime(1970, 1, 1, 0, 0, 24, tzinfo=datetime.timezone.utc)
+    start = datetime.datetime(1970, 1, 1, 0, 0, 8, tzinfo=datetime.UTC)
+    end = datetime.datetime(1970, 1, 1, 0, 0, 24, tzinfo=datetime.UTC)
     daterange = m3u8.DateRange(id="x", start_date=start, end_date=end, duration=16.0)
 
     result = daterange.dumps()
@@ -1803,7 +1803,7 @@ def test_parts_do_not_advance_segment_program_date_time_twice():
             """
         )
     )
-    start = datetime.datetime(2020, 1, 1, tzinfo=datetime.timezone.utc)
+    start = datetime.datetime(2020, 1, 1, tzinfo=datetime.UTC)
     one_second = datetime.timedelta(seconds=1)
 
     assert obj.segments[0].current_program_date_time == start

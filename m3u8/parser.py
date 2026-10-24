@@ -7,14 +7,6 @@ import re
 from datetime import datetime, timedelta
 from urllib.parse import unquote, urlsplit
 
-try:
-    from backports.datetime_fromisoformat import MonkeyPatch
-
-    MonkeyPatch.patch_fromisoformat()
-except ImportError:
-    pass
-
-
 from m3u8 import protocol, version_matching
 
 """

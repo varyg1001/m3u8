@@ -1,6 +1,5 @@
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from m3u8 import protocol
 
@@ -52,7 +51,7 @@ class VersionMatchRuleBase:
         version: float,
         line_number: int,
         line: str,
-        file_lines: Optional[list[str]] = None,
+        file_lines: list[str] | None = None,
     ) -> None:
         self.version = version
         self.line_number = line_number
