@@ -456,8 +456,13 @@ def _parse_byterange(line, state, **kwargs):
     state["expect_segment"] = True
 
 
+def _lenient_int(value):
+    # some playlists write integer attributes as decimals, e.g. VERSION:3.0
+    return int(float(value))
+
+
 def _parse_targetduration(**parse_kwargs):
-    return _parse_simple_parameter(cast_to=int, **parse_kwargs)
+    return _parse_simple_parameter(cast_to=_lenient_int, **parse_kwargs)
 
 
 def _parse_media_sequence(**parse_kwargs):
@@ -491,7 +496,7 @@ def _parse_cue_span(state, **parse_kwargs):
 
 
 def _parse_version(**parse_kwargs):
-    return _parse_simple_parameter(cast_to=int, **parse_kwargs)
+    return _parse_simple_parameter(cast_to=_lenient_int, **parse_kwargs)
 
 
 def _parse_allow_cache(**parse_kwargs):
