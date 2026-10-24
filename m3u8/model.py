@@ -1,6 +1,7 @@
 # Copyright 2014 Globo.com Player authors. All rights reserved.
 # Use of this source code is governed by a MIT License
 # license that can be found in the LICENSE file.
+import copy
 import datetime
 import decimal
 import os
@@ -55,6 +56,10 @@ class M3U8:
       ex.: http://example.com/path/to
 
     Attributes:
+
+     `files`
+       Returns the list of the key and segment URIs, in order, as they are written
+       in the playlist, see `absolute_files` for their absolute URIs.
 
      `defines`
        List of `Define` objects, the EXT-X-DEFINE tags of the playlist
@@ -329,6 +334,21 @@ class M3U8:
             if key and key.uri and key.uri not in files:
                 files.append(key.uri)
         files.extend(uri for uri in self.segments.uri if uri is not None)
+        return files
+
+    @property
+    def absolute_files(self):
+        """
+        The same files as `files` with their absolute URIs. It raises a
+        ValueError for a relative URI when there is no `base_uri`.
+        """
+        files = []
+        for key in self.keys:
+            if key and key.uri and key.absolute_uri not in files:
+                files.append(key.absolute_uri)
+        files.extend(
+            segment.absolute_uri for segment in self.segments if segment.uri is not None
+        )
         return files
 
     @property
@@ -1884,6 +1904,51 @@ def find_key(keydata, keylist):
 
 def denormalize_attribute(attribute):
     return attribute.replace("_", "-").upper()
+
+
+def _tag_repr(self):
+    try:
+        return f"{type(self).__name__}({str(self)!r})"
+    except Exception:  # a repr must not raise, ex.: while debugging a broken object
+        return object.__repr__(self)
+
+
+def _m3u8_repr(self):
+    uri = f", uri={self.uri!r}" if self.uri else ""
+    return f"M3U8(segments={len(self.segments)}, playlists={len(self.playlists)}{uri})"
+
+
+def _copy(self):
+    """Returns a copy that shares nothing with the original."""
+    return copy.deepcopy(self)
+
+
+M3U8.__repr__ = _m3u8_repr
+for _tag_class in (
+    ContentSteering,
+    DateRange,
+    Define,
+    IFramePlaylist,
+    ImagePlaylist,
+    InitializationSection,
+    Key,
+    Media,
+    PartialSegment,
+    PartInformation,
+    Playlist,
+    PreloadHint,
+    RenditionReport,
+    Segment,
+    ServerControl,
+    SessionData,
+    Skip,
+    Start,
+    StreamInfo,
+    Tiles,
+):
+    _tag_class.__repr__ = _tag_repr
+for _copyable_class in (M3U8, Segment, PartialSegment, Playlist, Media, Key):
+    _copyable_class.copy = _copy
 
 
 def quoted(string):
