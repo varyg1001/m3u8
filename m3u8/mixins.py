@@ -1,3 +1,4 @@
+import re
 from os.path import dirname
 from urllib.parse import urljoin, urlsplit
 
@@ -26,16 +27,17 @@ class BasePathMixin:
         return dirname(self.get_path_from_uri())
 
     def get_path_from_uri(self):
-        """Some URIs have a slash in the query string."""
-        return self.uri.split("?")[0]
+        """Some URIs have a slash in the query string or fragment."""
+        return re.split(r"[?#]", self.uri, maxsplit=1)[0]
 
     @base_path.setter
     def base_path(self, newbase_path):
         if self.uri is not None:
-            if not self.base_path:
+            old_base_path = self.base_path
+            if not old_base_path:
                 self.uri = f"{newbase_path}/{self.uri}"
             else:
-                self.uri = self.uri.replace(self.base_path, newbase_path)
+                self.uri = newbase_path + self.uri[len(old_base_path) :]
 
 
 class GroupedBasePathMixin:
