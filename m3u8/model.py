@@ -1,6 +1,7 @@
 # Copyright 2014 Globo.com Player authors. All rights reserved.
 # Use of this source code is governed by a MIT License
 # license that can be found in the LICENSE file.
+import datetime
 import decimal
 import os
 
@@ -1486,11 +1487,11 @@ class DateRange:
         # https://tools.ietf.org/html/rfc8216#section-8.10), and also by
         # real-world implementations, so we make it optional here
         if self.start_date:
-            daterange.append("START-DATE=" + quoted(self.start_date))
+            daterange.append("START-DATE=" + quoted(_format_date(self.start_date)))
         if self.class_:
             daterange.append("CLASS=" + quoted(self.class_))
         if self.end_date:
-            daterange.append("END-DATE=" + quoted(self.end_date))
+            daterange.append("END-DATE=" + quoted(_format_date(self.end_date)))
         if self.duration:
             daterange.append("DURATION=" + number_to_string(self.duration))
         if self.planned_duration:
@@ -1663,6 +1664,12 @@ def denormalize_attribute(attribute):
 
 def quoted(string):
     return '"%s"' % string
+
+
+def _format_date(value):
+    if isinstance(value, datetime.datetime):
+        return format_date_time(value)
+    return value
 
 
 def number_to_string(number):
