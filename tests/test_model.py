@@ -1719,6 +1719,49 @@ def test_bitrate_settable_as_int():
     assert "#EXT-X-BITRATE:9876" in obj.dumps().strip()
 
 
+def test_cue_out_cont_scte35_without_duration():
+    obj = m3u8.loads(
+        textwrap.dedent(
+            """\
+            #EXTM3U
+            #EXT-X-TARGETDURATION:10
+            #EXT-X-CUE-OUT-CONT:SCTE35=/DAAAA==
+            #EXTINF:10,
+            seg.ts
+            """
+        )
+    )
+
+    assert obj.segments[0].scte35 == "/DAAAA=="
+
+
+def test_daterange_datetime_uses_iso8601_t_separator():
+    start = datetime.datetime(1970, 1, 1, 0, 0, 8, tzinfo=datetime.timezone.utc)
+    end = datetime.datetime(1970, 1, 1, 0, 0, 24, tzinfo=datetime.timezone.utc)
+    daterange = m3u8.DateRange(id="x", start_date=start, end_date=end, duration=16.0)
+
+    result = daterange.dumps()
+
+    assert 'START-DATE="1970-01-01T00:00:08+00:00"' in result
+    assert 'END-DATE="1970-01-01T00:00:24+00:00"' in result
+    assert daterange.start_date is start
+
+
+def test_base_path_setter_replaces_only_the_prefix():
+    # "/k" also occurs inside "/key.bin"
+    segment = Segment(uri="/k/key.bin")
+
+    segment.base_path = "http://cdn/x"
+
+    assert segment.uri == "http://cdn/x/key.bin"
+
+
+def test_base_path_ignores_slash_in_uri_fragment():
+    segment = Segment(uri="video/segment.ts#fragment/path")
+
+    assert segment.base_path == "video"
+
+
 def test_stream_inf_quoted_attributes_round_trip():
     playlist = textwrap.dedent(
         """\
