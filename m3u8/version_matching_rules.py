@@ -106,7 +106,9 @@ class ValidFloatingPointEXTINF(MinimumVersionRule):
         if not is_tag(self.line, protocol.extinf):
             return True
 
+        # attributes can follow the duration, ex.: #EXTINF:-1 tvg-id="a",Title
         duration = self.line.replace(protocol.extinf + ":", "").split(",", 1)[0]
+        duration = duration.split(maxsplit=1)[0] if duration.strip() else duration
         try:
             float(duration)
         except ValueError:

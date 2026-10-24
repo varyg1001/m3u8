@@ -564,6 +564,10 @@ class Segment(BasePathMixin):
     `key`
       The most recently specified key of `keys`, `None` when there is none
 
+    `extinf_attributes`
+      Dictionary of the attributes that follow the duration in EXTINF, ex.: the
+      `tvg-id` of IPTV playlists. Empty for the playlists that have none.
+
     `parts`
       partial segments that make up this segment
 
@@ -601,6 +605,7 @@ class Segment(BasePathMixin):
         asset_metadata=None,
         keyobject=None,
         keyobjects=None,
+        extinf_attributes=None,
         parts=None,
         init_section=None,
         dateranges=None,
@@ -610,6 +615,7 @@ class Segment(BasePathMixin):
     ):
         self.media_sequence = media_sequence
         self.uri = uri
+        self.extinf_attributes = extinf_attributes or {}
         self.duration = duration
         self.title = title
         self._base_uri = base_uri
@@ -735,7 +741,11 @@ class Segment(BasePathMixin):
                     duration = f"{self.duration:.6f}"
                 else:
                     duration = number_to_string(self.duration)
-                output.append("#EXTINF:%s," % duration)
+                attributes = "".join(
+                    f" {name}={quoted(value)}"
+                    for name, value in self.extinf_attributes.items()
+                )
+                output.append(f"#EXTINF:{duration}{attributes},")
                 if self.title:
                     output.append(self.title)
                 output.append("\n")

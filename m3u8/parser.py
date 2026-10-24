@@ -363,20 +363,38 @@ def _parse_key(line, data, state, **kwargs):
         data["keys"].append(key)
 
 
+# The duration, the attributes some playlists (IPTV) add to it, ex.:
+# #EXTINF:-1 tvg-id="a" group-title="News, Weather",Title, and the title
+EXTINF_PATTERN = re.compile(
+    r"""\s*(?P<duration>[^\s,]+)"""
+    r"""(?P<attributes>(?:\s+[^\s=,"]+=(?:"[^"]*"|[^\s,"]*))*)"""
+    r"""\s*(?:,(?P<title>.*))?$""",
+    re.DOTALL,
+)
+EXTINF_ATTRIBUTE_PATTERN = re.compile(r"""([^\s=,"]+)=("[^"]*"|[^\s,"]*)""")
+
+
 def _parse_extinf(line, state, lineno, strict, **kwargs):
-    chunks = line[len(protocol.extinf) + 1 :].split(",", 1)
-    if len(chunks) == 2:
-        duration, title = chunks
-    elif len(chunks) == 1:
+    content = line[len(protocol.extinf) + 1 :]
+    match = EXTINF_PATTERN.match(content)
+    attributes = {}
+    if match:
+        duration, title = match["duration"], match["title"]
+        for name, value in EXTINF_ATTRIBUTE_PATTERN.findall(match["attributes"]):
+            attributes[name] = remove_quotes(value)
+    else:
+        duration, _, title = content.partition(",")
+        title = title if "," in content else None
+    if title is None:
         if strict:
             raise ParseError(lineno, line)
-        else:
-            duration = chunks[0]
-            title = ""
+        title = ""
     if "segment" not in state:
         state["segment"] = {}
     state["segment"]["duration"] = float(duration)
     state["segment"]["title"] = title
+    if attributes:
+        state["segment"]["extinf_attributes"] = attributes
     state["expect_segment"] = True
 
 
