@@ -678,6 +678,31 @@ def test_files_attribute_should_list_all_files_including_segments_and_key():
     assert files == obj.files
 
 
+def test_files_follow_base_path_and_skip_missing_uris():
+    obj = m3u8.loads(
+        textwrap.dedent(
+            """\
+            #EXTM3U
+            #EXT-X-TARGETDURATION:5
+            #EXT-X-KEY:METHOD=AES-128,URI="/k/key.bin"
+            #EXTINF:5,
+            /s/a.ts
+            #EXT-X-KEY:METHOD=NONE
+            #EXTINF:5,
+            /s/b.ts
+            """
+        )
+    )
+
+    obj.base_path = "http://cdn/x"
+
+    assert obj.files == [
+        "http://cdn/x/key.bin",
+        "http://cdn/x/a.ts",
+        "http://cdn/x/b.ts",
+    ]
+
+
 def test_vod_playlist_type_should_be_imported_as_a_simple_attribute():
     obj = m3u8.M3U8(playlists.SIMPLE_PLAYLIST_WITH_VOD_PLAYLIST_TYPE)
     assert obj.playlist_type == "vod"

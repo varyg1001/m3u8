@@ -201,13 +201,6 @@ class M3U8:
         for i, segment in enumerate(self.segments, self.media_sequence or 0):
             segment.media_sequence = i
 
-        self.files = []
-        for key in self.keys:
-            # Avoid None key, it could be the first one, don't repeat them
-            if key and key.uri not in self.files:
-                self.files.append(key.uri)
-        self.files.extend(self.segments.uri)
-
         self.media = MediaList(
             [
                 Media(base_uri=self.base_uri, **media)
@@ -286,6 +279,16 @@ class M3U8:
 
     def __str__(self):
         return self.dumps()
+
+    @property
+    def files(self):
+        files = []
+        for key in self.keys:
+            # Avoid None key, it could be the first one, don't repeat them
+            if key and key.uri and key.uri not in files:
+                files.append(key.uri)
+        files.extend(uri for uri in self.segments.uri if uri is not None)
+        return files
 
     @property
     def base_uri(self):
