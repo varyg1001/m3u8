@@ -1,0 +1,83 @@
+[build-system]
+requires = ["uv_build>=0.13.5,<0.14"]
+build-backend = "uv_build"
+
+[project]
+name = "m3u8"
+description = "Python m3u8 parser"
+version = "6.1.0"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Globo.com" }, { name = "varyg" }]
+requires-python = ">=3.9"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "backports-datetime-fromisoformat; python_version < '3.11'",
+]
+
+[project.urls]
+Homepage = "https://github.com/varyg1001/m3u8"
+Source = "https://github.com/varyg1001/m3u8"
+
+[tool.uv]
+managed = true
+
+[tool.uv.build-backend]
+module-root = "."
+
+[dependency-groups]
+dev = [
+    "bottle",
+    "pytest",
+    "pytest-cov",
+    "pre-commit>=4.0.0",
+    "ruff<1.0.0,>=0.14.0",
+    "vulture<3.0,>=2.6",
+]
+
+[tool.vulture]
+paths = ["."]
+exclude = [".venv/"]
+min_confidence = 100
+
+[tool.ruff]
+exclude = [
+    ".eggs",
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".vscode",
+    "build",
+    "dist",
+    "venv",
+]
+indent-width = 4
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "A", "C4", "T20", "SIM", "ARG", "PTH"]
+ignore = [
+    "E501", "T201", "A004", "A001",
+    # Existing code style: yoda comparisons in the tests, printf-style
+    # formatting, the uniform signature of the parser tag handlers and os.path.
+    "SIM300", "UP031", "ARG", "PTH",
+]
+unfixable = ["B"]
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*)|([a-z0-9_]*_))$"
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = false
+docstring-code-line-length = "dynamic"

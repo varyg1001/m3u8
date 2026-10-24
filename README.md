@@ -88,9 +88,14 @@ playlist.dump('playlist.m3u8')
 
 # Running Tests
 
+The project uses [uv](https://docs.astral.sh/uv/). The script installs the
+development dependencies, starts the test server and runs the tests:
+
 ``` bash
 $ ./runtests
 ```
+
+To set up an environment only, run `uv sync`.
 
 # Contributing
 

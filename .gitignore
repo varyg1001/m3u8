@@ -13,5 +13,6 @@ local/
 .python-version
 .idea/
 .vscode/
+.venv/
 venv/
 pyvenv.cfg
